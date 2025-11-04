@@ -49,9 +49,13 @@ class Settings(BaseSettings):
     pdf_extraction_timeout: int = 60  # seconds
     max_page_count: int = 500
     
-    # Service URLs (for Phase 4 - API Gateway)
-    vector_service_url: Optional[str] = None
+    # Service URLs
+    vector_service_url: str = "http://vector-db:8000"  # Docker internal network
     llm_service_url: Optional[str] = None
+    
+    # Vector DB Integration
+    enable_vector_db: bool = True  # Enable automatic vector DB processing
+    vector_db_timeout: int = 300  # 5 minutes for embedding generation
     
     # Security Settings (for future use)
     secret_key: Optional[str] = None

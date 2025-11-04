@@ -1,12 +1,13 @@
 """
 API v1 - Document Processing Endpoints
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from pathlib import Path
+import logging
 
 from database import get_db
 from utils.pdf_parser import PDFParser
@@ -17,19 +18,53 @@ from schemas import (
     FigureMetadata,
     ReferenceItem,
 )
+from api.v1.search_schemas import SearchRequest, SearchResponse
 from config import settings
 import crud
+from vector_client import get_vector_client
 
 # Create API router
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+async def process_in_vector_db(document_id: int, full_text: str, sections: dict):
+    """
+    Background task to send document to Vector DB for processing
+    
+    Args:
+        document_id: ID of the document
+        full_text: Complete document text
+        sections: Dictionary of extracted sections
+    """
+    try:
+        vector_client = get_vector_client()
+        result = await vector_client.process_document(
+            document_id=document_id,
+            full_text=full_text,
+            sections=sections
+        )
+        if result:
+            logger.info(f"Document {document_id} successfully processed in Vector DB")
+        else:
+            logger.warning(f"Document {document_id} processing in Vector DB returned None")
+    except Exception as e:
+        logger.error(f"Error processing document {document_id} in Vector DB: {e}")
 
 
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
-async def upload_document(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_document(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
     """
     Upload a research paper PDF
     
     - **file**: PDF file to upload (max 10MB)
+    
+    After successful upload and processing, the document will be automatically
+    sent to the Vector DB service for chunking and embedding generation.
     """
     # Validate file type
     if not file.filename or not file.filename.endswith('.pdf'):
@@ -101,6 +136,16 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
         
         # Create document using CRUD
         document = crud.create_document(db, document_data)
+        
+        # Send to Vector DB in background (non-blocking)
+        if settings.enable_vector_db:
+            background_tasks.add_task(
+                process_in_vector_db,
+                document.id,
+                text_content,
+                sections
+            )
+            logger.info(f"Scheduled Vector DB processing for document {document.id}")
         
         return DocumentResponse.model_validate(document)
         
@@ -231,6 +276,8 @@ async def delete_document_by_id(document_id: int, db: Session = Depends(get_db))
     Delete a document
     
     - **document_id**: ID of the document to delete
+    
+    Also deletes the document's chunks from the Vector DB.
     """
     document = crud.get_document(db, document_id)
     
@@ -239,6 +286,12 @@ async def delete_document_by_id(document_id: int, db: Session = Depends(get_db))
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document with ID {document_id} not found"
         )
+    
+    # Delete from Vector DB
+    if settings.enable_vector_db:
+        vector_client = get_vector_client()
+        await vector_client.delete_document_chunks(document_id)
+        logger.info(f"Deleted Vector DB chunks for document {document_id}")
     
     # Delete file from disk
     file_path = Path(str(document.file_path))
@@ -249,3 +302,50 @@ async def delete_document_by_id(document_id: int, db: Session = Depends(get_db))
     crud.delete_document(db, document_id)
     
     return None
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_documents(request: SearchRequest):
+    """
+    Semantic search across all documents using Vector DB
+    
+    - **query**: Search query text
+    - **max_results**: Maximum number of results (1-50)
+    - **document_id**: Optional filter by specific document
+    - **section**: Optional filter by section
+    
+    Returns chunks of text semantically similar to the query.
+    Requires Vector DB service to be running.
+    """
+    if not settings.enable_vector_db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vector DB integration is disabled"
+        )
+    
+    vector_client = get_vector_client()
+    
+    # Check Vector DB health
+    is_healthy = await vector_client.health_check()
+    if not is_healthy:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vector DB service is not available"
+        )
+    
+    # Perform search
+    result = await vector_client.search(
+        query=request.query,
+        max_results=request.max_results,
+        document_id=request.document_id,
+        section=request.section
+    )
+    
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error performing search in Vector DB"
+        )
+    
+    return SearchResponse(**result)
+

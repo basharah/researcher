@@ -8,9 +8,10 @@ sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 pgvector==0.2.4
 
-# Embeddings
-sentence-transformers==2.2.2
-torch==2.1.0
+# Embeddings - use compatible versions
+sentence-transformers==2.3.1
+torch==2.2.0
+transformers==4.37.2
 numpy==1.26.2
 
 # Redis

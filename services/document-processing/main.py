@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 from api import api_router
 from config import settings
+from vector_client import get_vector_client
 
 
 # Create database tables
@@ -47,12 +48,22 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Detailed health check"""
-    return {
+    health_status = {
         "status": "healthy",
         "database": "connected",
         "upload_dir": str(settings.upload_dir),
-        "upload_dir_exists": settings.upload_dir.exists()
+        "upload_dir_exists": settings.upload_dir.exists(),
+        "vector_db_enabled": settings.enable_vector_db,
+        "vector_db_status": "disabled"
     }
+    
+    # Check Vector DB if enabled
+    if settings.enable_vector_db:
+        vector_client = get_vector_client()
+        is_healthy = await vector_client.health_check()
+        health_status["vector_db_status"] = "healthy" if is_healthy else "unavailable"
+    
+    return health_status
 
 
 if __name__ == "__main__":
