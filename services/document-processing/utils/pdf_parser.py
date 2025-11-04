@@ -6,13 +6,14 @@ import statistics
 
 
 class PDFParser:
-    """Parse PDF files to extract text and metadata.
+    """Parse PDF files to extract comprehensive research paper content.
 
-    Improvements over a straight `extract_text()`:
-    - Detects two-column layouts using a simple horizontal projection heuristic
-      and extracts left-then-right column text in reading order.
-    - Attempts to extract title and authors from layout (font sizes / positions)
-      on the first page when metadata isn't present.
+    Features:
+    - Text extraction with two-column layout detection
+    - Title and authors extraction from layout analysis
+    - Table extraction with structure preservation
+    - Figure/image extraction with captions
+    - References parsing
     """
 
     def __init__(self, pdf_path: str):
@@ -100,6 +101,154 @@ class PDFParser:
             print(f"Error extracting text by page: {e}")
 
         return pages
+
+    def extract_tables(self) -> List[Dict]:
+        """Extract all tables from the PDF with structure and metadata.
+        
+        Returns:
+            List of dicts with keys: page, table_num, data, bbox, caption
+        """
+        tables_data = []
+        
+        try:
+            with pdfplumber.open(self.pdf_path) as pdf:
+                for page_num, page in enumerate(pdf.pages, start=1):
+                    # Extract tables from this page
+                    page_tables = page.extract_tables()
+                    
+                    if not page_tables:
+                        continue
+                    
+                    # Get page text for caption detection
+                    page_text = page.extract_text() or ""
+                    
+                    for table_idx, table in enumerate(page_tables, start=1):
+                        if not table or not any(table):  # Skip empty tables
+                            continue
+                        
+                        # Try to find caption near this table
+                        caption = self._find_table_caption(page_text, table_idx)
+                        
+                        # Get table bounding box if available
+                        bbox = None
+                        try:
+                            table_settings = page.find_tables()[table_idx - 1]
+                            if table_settings:
+                                bbox = table_settings.bbox
+                        except (IndexError, AttributeError):
+                            pass
+                        
+                        tables_data.append({
+                            'page': page_num,
+                            'table_num': table_idx,
+                            'data': table,  # 2D list: [[row1], [row2], ...]
+                            'bbox': bbox,
+                            'caption': caption,
+                            'row_count': len(table),
+                            'col_count': len(table[0]) if table else 0
+                        })
+        
+        except Exception as e:
+            print(f"Error extracting tables: {e}")
+        
+        return tables_data
+
+    def extract_figures(self, output_dir: Optional[Path] = None) -> List[Dict]:
+        """Extract images/figures from PDF and save them.
+        
+        Args:
+            output_dir: Directory to save extracted images. If None, uses pdf directory.
+            
+        Returns:
+            List of dicts with keys: page, figure_num, file_path, bbox, caption, type
+        """
+        if output_dir is None:
+            output_dir = self.pdf_path.parent / 'figures'
+        
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        figures_data = []
+        pdf_name = self.pdf_path.stem
+        
+        try:
+            with pdfplumber.open(self.pdf_path) as pdf:
+                for page_num, page in enumerate(pdf.pages, start=1):
+                    # Get page text for caption detection
+                    page_text = page.extract_text() or ""
+                    
+                    # Extract images from this page
+                    images = page.images
+                    
+                    for img_idx, img in enumerate(images, start=1):
+                        try:
+                            # Get image bounding box
+                            bbox = (img.get('x0'), img.get('top'), 
+                                   img.get('x1'), img.get('bottom'))
+                            
+                            # Try to find caption
+                            caption = self._find_figure_caption(page_text, img_idx)
+                            
+                            # Save image using page.crop and convert to PIL
+                            img_bbox = (img['x0'], img['top'], img['x1'], img['bottom'])
+                            cropped = page.crop(img_bbox)
+                            
+                            # Generate filename
+                            filename = f"{pdf_name}_p{page_num}_fig{img_idx}.png"
+                            file_path = output_dir / filename
+                            
+                            # Convert to image and save
+                            try:
+                                im = cropped.to_image(resolution=150)
+                                im.save(str(file_path))
+                            except Exception as save_error:
+                                print(f"Could not save image: {save_error}")
+                                file_path = None
+                            
+                            figures_data.append({
+                                'page': page_num,
+                                'figure_num': img_idx,
+                                'file_path': str(file_path) if file_path else None,
+                                'bbox': bbox,
+                                'caption': caption,
+                                'width': img.get('width'),
+                                'height': img.get('height')
+                            })
+                        
+                        except Exception as img_error:
+                            print(f"Error processing image {img_idx} on page {page_num}: {img_error}")
+                            continue
+        
+        except Exception as e:
+            print(f"Error extracting figures: {e}")
+        
+        return figures_data
+
+    def extract_references(self) -> List[Dict]:
+        """Extract references/bibliography from the paper.
+        
+        Returns:
+            List of dicts with keys: index, text, title, authors, year, venue
+        """
+        references = []
+        
+        try:
+            # First, extract the full text
+            full_text = self.extract_text()
+            
+            # Find the references section
+            ref_section = self._extract_references_section(full_text)
+            
+            if not ref_section:
+                return references
+            
+            # Parse individual references
+            references = self._parse_references(ref_section)
+        
+        except Exception as e:
+            print(f"Error extracting references: {e}")
+        
+        return references
 
     def _extract_text_from_page(self, page) -> str:
         """Extract text from a single pdfplumber page, handling 1- or 2-column layouts.
@@ -299,6 +448,182 @@ class PDFParser:
         except Exception as e:
             print(f"_extract_title_and_authors_from_page error: {e}")
             return None, []
+
+    def _find_table_caption(self, page_text: str, table_num: int) -> Optional[str]:
+        """Find caption for a table on the page."""
+        import re
+        
+        # Look for patterns like "Table 1:", "TABLE I:", "Tab. 1.", etc.
+        patterns = [
+            rf'Table\s+{table_num}[:\.]?\s*([^\n]+)',
+            rf'TABLE\s+{table_num}[:\.]?\s*([^\n]+)',
+            rf'Tab\.\s*{table_num}[:\.]?\s*([^\n]+)',
+        ]
+        
+        # Also try Roman numerals for first few tables
+        roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+        if table_num <= len(roman):
+            patterns.append(rf'Table\s+{roman[table_num-1]}[:\.]?\s*([^\n]+)')
+            patterns.append(rf'TABLE\s+{roman[table_num-1]}[:\.]?\s*([^\n]+)')
+        
+        for pattern in patterns:
+            match = re.search(pattern, page_text, re.IGNORECASE)
+            if match:
+                caption = match.group(1).strip()
+                # Limit caption length to avoid capturing too much
+                if len(caption) > 200:
+                    caption = caption[:200] + '...'
+                return caption
+        
+        return None
+
+    def _find_figure_caption(self, page_text: str, fig_num: int) -> Optional[str]:
+        """Find caption for a figure on the page."""
+        import re
+        
+        # Look for patterns like "Figure 1:", "Fig. 1:", "FIG. 1.", etc.
+        patterns = [
+            rf'Figure\s+{fig_num}[:\.]?\s*([^\n]+)',
+            rf'Fig\.\s*{fig_num}[:\.]?\s*([^\n]+)',
+            rf'FIG\.\s*{fig_num}[:\.]?\s*([^\n]+)',
+            rf'FIGURE\s+{fig_num}[:\.]?\s*([^\n]+)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, page_text, re.IGNORECASE)
+            if match:
+                caption = match.group(1).strip()
+                # Limit caption length
+                if len(caption) > 200:
+                    caption = caption[:200] + '...'
+                return caption
+        
+        return None
+
+    def _extract_references_section(self, full_text: str) -> Optional[str]:
+        """Extract the references/bibliography section from paper text."""
+        import re
+        
+        # Common section headers for references
+        ref_headers = [
+            r'\n\s*REFERENCES\s*\n',
+            r'\n\s*References\s*\n',
+            r'\n\s*BIBLIOGRAPHY\s*\n',
+            r'\n\s*Bibliography\s*\n',
+            r'\n\s*WORKS\s+CITED\s*\n',
+        ]
+        
+        for pattern in ref_headers:
+            match = re.search(pattern, full_text)
+            if match:
+                # Extract from this point to end (or to appendix if exists)
+                start_pos = match.end()
+                
+                # Try to find where references end (appendix, acknowledgments, etc.)
+                end_patterns = [
+                    r'\n\s*APPENDIX',
+                    r'\n\s*Appendix',
+                    r'\n\s*ACKNOWLEDGMENTS',
+                    r'\n\s*Acknowledgments',
+                ]
+                
+                end_pos = len(full_text)
+                for end_pattern in end_patterns:
+                    end_match = re.search(end_pattern, full_text[start_pos:])
+                    if end_match:
+                        end_pos = start_pos + end_match.start()
+                        break
+                
+                return full_text[start_pos:end_pos].strip()
+        
+        return None
+
+    def _parse_references(self, ref_text: str) -> List[Dict]:
+        """Parse individual references from the references section.
+        
+        This is a basic implementation that splits on common patterns.
+        For production, consider using specialized libraries like anystyle or grobid.
+        """
+        import re
+        
+        references: List[Dict] = []
+        
+        # Split references by numbered patterns: [1], [2], etc. or 1. 2. etc.
+        # Try bracketed numbers first
+        ref_pattern = r'\[(\d+)\]\s*([^\[]+?)(?=\[\d+\]|$)'
+        matches = re.findall(ref_pattern, ref_text, re.DOTALL)
+        
+        if not matches:
+            # Try plain numbered list: 1. 2. 3.
+            ref_pattern = r'(?:^|\n)(\d+)\.\s*([^\n]+(?:\n(?!\d+\.)[^\n]+)*)'
+            matches = re.findall(ref_pattern, ref_text, re.MULTILINE)
+        
+        if not matches:
+            # Fallback: split by double newlines
+            parts = [p.strip() for p in ref_text.split('\n\n') if p.strip()]
+            matches = [(str(i+1), part) for i, part in enumerate(parts)]
+        
+        for idx_str, ref_content in matches:
+            ref_content = ref_content.strip()
+            
+            # Basic parsing (very simplified - production would use proper citation parser)
+            parsed = {
+                'index': int(idx_str) if idx_str.isdigit() else len(references) + 1,
+                'text': ref_content,
+                'title': self._extract_ref_title(ref_content),
+                'authors': self._extract_ref_authors(ref_content),
+                'year': self._extract_ref_year(ref_content),
+                'venue': None  # Could be extracted with more sophisticated parsing
+            }
+            
+            references.append(parsed)
+        
+        return references
+
+    def _extract_ref_title(self, ref_text: str) -> Optional[str]:
+        """Extract title from a reference (very basic heuristic)."""
+        import re
+        
+        # Look for quoted title
+        quoted = re.search(r'"([^"]+)"', ref_text)
+        if quoted:
+            return quoted.group(1)
+        
+        # Look for title in italics (if preserved in text)
+        # This is a fallback - often titles are just capitalized
+        return None
+
+    def _extract_ref_authors(self, ref_text: str) -> List[str]:
+        """Extract authors from a reference (very basic)."""
+        # Very simplified: take text before first period or comma list before year
+        # Production would use citation parsing library
+        parts = ref_text.split('.')
+        if parts:
+            first_part = parts[0].strip()
+            # Could be authors
+            if len(first_part) < 100:
+                return [first_part]
+        return []
+
+    def _extract_ref_year(self, ref_text: str) -> Optional[int]:
+        """Extract publication year from a reference."""
+        import re
+        
+        # Look for 4-digit year in parentheses or standalone
+        year_patterns = [
+            r'\((\d{4})\)',  # (2023)
+            r'\b(19\d{2}|20\d{2})\b',  # 1990-2099
+        ]
+        
+        for pattern in year_patterns:
+            match = re.search(pattern, ref_text)
+            if match:
+                try:
+                    return int(match.group(1))
+                except ValueError:
+                    pass
+        
+        return None
 
 
 def re_split_authors(text: Optional[str]) -> List[str]:

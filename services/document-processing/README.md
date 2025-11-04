@@ -106,6 +106,18 @@ export REDIS_URL=redis://localhost:6379
 ```bash
 uvicorn main:app --reload --port 8001
 ```
+### Migrations (Alembic)
+	- Initialize already configured Alembic in this service under `alembic/`.
+	- Common commands (run from `services/document-processing/`):
+		- Upgrade to latest: `./migrate.sh upgrade head`
+		- Create new revision (autogenerate): `./migrate.sh revision -m "message" --autogenerate`
+		- Downgrade one step: `./migrate.sh downgrade -1`
+	- Alembic reads the database URL from `config.settings.database_url` (or `DATABASE_URL` env var).
+	- New columns added:
+		- `tables_data` JSONB
+		- `figures_metadata` JSONB
+		- `references_json` JSONB
+		- `tables_extracted`, `figures_extracted`, `references_extracted` booleans
 
 ## Running with Docker
 

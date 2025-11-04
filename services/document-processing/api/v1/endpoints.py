@@ -2,15 +2,21 @@
 API v1 - Document Processing Endpoints
 """
 from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from pathlib import Path
 
 from database import get_db
 from utils.pdf_parser import PDFParser
 from utils.text_processor import TextProcessor
-from schemas import DocumentResponse
+from schemas import (
+    DocumentResponse,
+    TableData,
+    FigureMetadata,
+    ReferenceItem,
+)
 from config import settings
 import crud
 
@@ -57,6 +63,11 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
         parser = PDFParser(str(file_path))
         metadata = parser.extract_metadata()
         text_content = parser.extract_text()
+        # Comprehensive extraction
+        figures_dir = settings.upload_dir / 'figures'
+        tables = parser.extract_tables()
+        figures = parser.extract_figures(output_dir=figures_dir)
+        references_struct = parser.extract_references()
         
         # Process text to extract sections
         processor = TextProcessor(text_content)
@@ -78,7 +89,14 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
             "conclusion": sections.get('conclusion'),
             "references": sections.get('references'),
             "full_text": text_content,
-            "upload_date": datetime.now()
+            "upload_date": datetime.now(),
+            # New fields
+            "tables_data": tables,
+            "figures_metadata": figures,
+            "references_json": references_struct,
+            "tables_extracted": bool(tables),
+            "figures_extracted": bool(figures),
+            "references_extracted": bool(references_struct),
         }
         
         # Create document using CRUD
@@ -155,6 +173,58 @@ async def get_document_sections(document_id: int, db: Session = Depends(get_db))
     }
 
 
+@router.get("/documents/{document_id}/tables", response_model=List[TableData])
+async def get_document_tables(document_id: int, db: Session = Depends(get_db)):
+    """Return all extracted tables for a document"""
+    document = crud.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document.tables_data or []
+
+
+@router.get("/documents/{document_id}/figures", response_model=List[FigureMetadata])
+async def get_document_figures(document_id: int, db: Session = Depends(get_db)):
+    """Return all extracted figures metadata for a document"""
+    document = crud.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document.figures_metadata or []
+
+
+@router.get("/documents/{document_id}/references/structured", response_model=List[ReferenceItem])
+async def get_document_references_structured(document_id: int, db: Session = Depends(get_db)):
+    """Return structured references for a document"""
+    document = crud.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document.references_json or []
+
+
+@router.get("/documents/{document_id}/figure-file/{figure_num}")
+async def get_figure_image(document_id: int, figure_num: int, db: Session = Depends(get_db)):
+    """Serve a specific figure image file by number"""
+    document = crud.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    figures_meta: List[dict] = document.figures_metadata if isinstance(document.figures_metadata, list) else []
+    match_path: Optional[str] = None
+    for fig in figures_meta:
+        try:
+            num = fig.get('figure_num') if isinstance(fig, dict) else None
+            if num is not None and int(str(num)) == figure_num:
+                match_path = fig.get('file_path')
+                break
+        except Exception:
+            continue
+    if not match_path:
+        raise HTTPException(status_code=404, detail="Figure not found")
+    path = Path(match_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Figure file missing")
+    # Let FastAPI serve the file
+    return FileResponse(path)
+
+
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document_by_id(document_id: int, db: Session = Depends(get_db)):
     """
@@ -171,7 +241,7 @@ async def delete_document_by_id(document_id: int, db: Session = Depends(get_db))
         )
     
     # Delete file from disk
-    file_path = Path(document.file_path)
+    file_path = Path(str(document.file_path))
     if file_path.exists():
         file_path.unlink()
     

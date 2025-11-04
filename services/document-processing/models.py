@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ARRAY
+from sqlalchemy import Column, Integer, String, Text, DateTime, ARRAY, Boolean
+from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime
 from database import Base
 
@@ -27,6 +28,11 @@ class Document(Base):
     conclusion = Column(Text, nullable=True)
     references = Column(Text, nullable=True)
     full_text = Column(Text, nullable=True)
+
+    # Comprehensive extraction artifacts
+    tables_data = Column(JSONB, nullable=True)
+    figures_metadata = Column(JSONB, nullable=True)
+    references_json = Column(JSONB, nullable=True)
     
     # Timestamps
     upload_date = Column(DateTime, default=datetime.utcnow)
@@ -34,6 +40,9 @@ class Document(Base):
     
     # Processing status
     processing_status = Column(String, default="uploaded")  # uploaded, processing, completed, failed
+    tables_extracted = Column(Boolean, default=False)
+    figures_extracted = Column(Boolean, default=False)
+    references_extracted = Column(Boolean, default=False)
     
     def __repr__(self):
         return f"<Document(id={self.id}, title='{self.title}', filename='{self.filename}')>"
