@@ -1,0 +1,128 @@
+services:
+  # PostgreSQL Database with pgvector extension
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: researcher-postgres
+    environment:
+      POSTGRES_USER: researcher
+      POSTGRES_PASSWORD: researcher_pass
+      POSTGRES_DB: research_papers
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U researcher"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: researcher-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Document Processing Service (Phase 1)
+  document-processing:
+    image: document-processing-service:latest
+    build:
+      context: ./services/document-processing
+      dockerfile: Dockerfile
+    container_name: document-processing-service
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_NAME=document-processing
+    volumes:
+      - ./services/document-processing:/app
+      - ./uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Vector Database Service (Phase 2 - to be implemented)
+  vector-db:
+    build:
+      context: ./services/vector-db
+      dockerfile: Dockerfile
+    container_name: vector-db-service
+    ports:
+      - "8002:8000"
+    environment:
+      - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_NAME=vector-db
+    volumes:
+      - ./services/vector-db:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    profiles:
+      - phase2
+
+  # LLM Service (Phase 3 - to be implemented)
+  llm-service:
+    build:
+      context: ./services/llm-service
+      dockerfile: Dockerfile
+    container_name: llm-service
+    ports:
+      - "8003:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_NAME=llm-service
+    volumes:
+      - ./services/llm-service:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    profiles:
+      - phase3
+
+  # API Gateway (Phase 4 - to be implemented)
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - DOCUMENT_SERVICE_URL=http://document-processing:8000
+      - VECTOR_SERVICE_URL=http://vector-db:8000
+      - LLM_SERVICE_URL=http://llm-service:8000
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_NAME=api-gateway
+    volumes:
+      - ./services/api-gateway:/app
+    depends_on:
+      - document-processing
+      - redis
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    profiles:
+      - phase4
+
+volumes:
+  postgres_data:
+  redis_data:
+#  uploads_data:
