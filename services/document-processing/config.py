@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
     # Application Settings
-    app_name: str = "Document Processing Service"
+    app_name: str = "Vector Database Service"
     app_version: str = "1.0.0"
     debug: bool = False
     
