@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Embedding model
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"  # Fast and good quality
     embedding_dimension: int = 384  # Dimension for all-MiniLM-L6-v2
+    use_gpu: bool = True  # Enable GPU acceleration if available
     
     # Chunking settings
     chunk_size: int = 500  # Characters per chunk

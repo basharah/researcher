@@ -66,6 +66,7 @@ This project implements a complete chatbot system for research paper analysis us
 - Python 3.11+ (for local development)
 - Node.js 18+ (for frontend development)
 - OpenAI or Anthropic API key (for Phase 3)
+- **NVIDIA GPU + Container Toolkit (optional, for GPU acceleration)** - see [GPU_SETUP.md](GPU_SETUP.md)
 
 ### Quick Start
 

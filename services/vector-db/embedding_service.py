@@ -4,6 +4,7 @@ Embedding generation utilities
 from sentence_transformers import SentenceTransformer  # type: ignore
 from typing import List, Union, Optional
 import numpy as np  # type: ignore
+import torch  # type: ignore
 from config import settings
 
 
@@ -18,8 +19,19 @@ class EmbeddingService:
             model_name: Name of the sentence-transformers model to use
         """
         self.model_name = model_name or settings.embedding_model
+        
+        # Detect GPU availability
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
         print(f"Loading embedding model: {self.model_name}")
-        self.model = SentenceTransformer(self.model_name)
+        print(f"Device: {self.device}")
+        
+        if self.device == "cuda":
+            print(f"GPU: {torch.cuda.get_device_name(0)}")
+            print(f"CUDA Version: {torch.version.cuda}")
+            print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+        
+        self.model = SentenceTransformer(self.model_name, device=self.device)
         self.dimension = self.model.get_sentence_embedding_dimension()
         print(f"Model loaded. Embedding dimension: {self.dimension}")
     
