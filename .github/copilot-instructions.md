@@ -13,36 +13,39 @@ PDF Upload → Document Processing (8001) → Background Task → Vector DB (800
 
 **Key Insight**: Document upload returns immediately to user, while Vector DB processing happens asynchronously via `BackgroundTasks`. This prevents timeouts during embedding generation (~30s-5min on first load).
 
-### Active Services (Phases 1-2 Complete)
+### Active Services (Phases 1-3 Complete)
 - **Document Processing** (port 8001): PDF upload, extraction (text, tables, figures, refs), stores in PostgreSQL
 - **Vector DB** (port 8002): Text chunking (500 chars, 50 overlap), sentence-transformers embeddings (384d), semantic search via pgvector, **GPU-accelerated** for faster embedding generation
+- **LLM Service** (port 8003): AI-powered analysis using OpenAI/Anthropic, RAG-enabled Q&A, document comparison, interactive chat
 - **PostgreSQL**: Shared database with `documents` and `document_chunks` tables, pgvector extension enabled
 - **Redis**: Currently minimal usage, prepared for caching/sessions
 
 ### GPU Configuration
 System has **2 NVIDIA GPUs** (RTX 2080 Ti 11GB, GTX 960 4GB):
 - **Vector DB** uses GPU 0 (RTX 2080 Ti) for embedding generation (~10-50x faster than CPU)
-- **LLM Service** (Phase 3) will use GPU 1 (GTX 960) for local model inference
+- **LLM Service** uses GPU 1 (GTX 960) reserved for local model inference (when implemented)
 - GPU allocation managed via `CUDA_VISIBLE_DEVICES` in docker-compose.yml
 - Sentence-transformers automatically detects and uses CUDA when available
 
 ### Placeholders (Future Phases)
-- LLM Service (8003), API Gateway (8000), Frontend - basic structure exists but not implemented
+- API Gateway (8000), Frontend - basic structure exists but not implemented
 
 ## Critical Developer Workflows
 
 ### Starting the System
 ```bash
-# Start all Phase 1-2 services (recommended)
-docker-compose up -d postgres redis document-processing vector-db
+# Start all Phase 1-3 services (recommended)
+docker-compose up -d postgres redis document-processing vector-db llm-service
 
-# Phase 2 uses 'profiles' - must explicitly include or start separately
-docker-compose --profile phase2 up -d
+# Or use profiles
+docker-compose --profile phase3 up -d
 
 # Quick start script available: ./start.sh (Linux/Mac)
 ```
 
 **First Startup**: Vector DB takes 30s-2min to download sentence-transformers model (all-MiniLM-L6-v2). **GPU reduces embedding time from ~5min to ~30s** for typical papers. Monitor with `docker logs -f vector-db-service`.
+
+**LLM Service**: Requires `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in `.env`. Service starts without keys but endpoints will fail.
 
 ### Testing Services
 ```bash
@@ -56,6 +59,11 @@ curl -X POST -F "file=@paper.pdf" http://localhost:8001/api/v1/upload
 curl -X POST http://localhost:8001/api/v1/search \
   -H "Content-Type: application/json" \
   -d '{"query": "machine learning methodology", "max_results": 5}'
+
+# LLM analysis (requires API key)
+curl -X POST http://localhost:8003/api/v1/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"document_id": 1, "analysis_type": "summary"}'
 
 # Integration test script (comprehensive)
 ./test-phase2-integration.sh
@@ -176,11 +184,14 @@ result = await vector_client.process_document(...)
 
 **Must-read for understanding architecture:**
 - `docker-compose.yml`: Service definitions, ports, dependencies, profiles
-- `PHASE2_INTEGRATION_COMPLETE.md`: Complete integration guide with API examples
+- `PHASE2_INTEGRATION_COMPLETE.md`: Vector DB integration guide
+- `PHASE3_LLM_SERVICE.md`: LLM service features and API examples
 - `services/document-processing/vector_client.py`: Inter-service HTTP communication pattern
 - `services/document-processing/utils/pdf_parser.py`: Comprehensive extraction (700+ lines)
 - `services/vector-db/text_chunker.py`: Chunking strategy with overlap
 - `services/vector-db/embedding_service.py`: Sentence-transformers integration
+- `services/llm-service/prompts.py`: LLM prompt templates for different analysis types
+- `services/llm-service/llm_client.py`: OpenAI/Anthropic client wrapper
 
 **Service-specific patterns:**
 - `services/*/config.py`: Pydantic settings for each service
