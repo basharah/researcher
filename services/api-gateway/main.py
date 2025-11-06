@@ -9,6 +9,7 @@ import sys
 
 from config import settings
 from api import api_router
+from database import init_db
 
 # Configure logging
 logging.basicConfig(
@@ -43,13 +44,18 @@ app.include_router(api_router, prefix=settings.api_prefix)
 
 @app.on_event("startup")
 async def startup_event():
-    """Log startup information"""
+    """Log startup information and initialize database"""
+    # Initialize database tables
+    logger.info("Initializing database tables...")
+    init_db()
+    
     logger.info("=" * 60)
     logger.info("API Gateway Service Starting")
     logger.info("=" * 60)
     logger.info(f"Service: {settings.service_name}")
     logger.info(f"API Prefix: {settings.api_prefix}")
     logger.info(f"CORS Origins: {settings.cors_origins}")
+    logger.info(f"Authentication: {'Enabled' if settings.enable_auth else 'Disabled'}")
     logger.info("")
     logger.info("Backend Services:")
     logger.info(f"  - Document Processing: {settings.document_service_url}")
