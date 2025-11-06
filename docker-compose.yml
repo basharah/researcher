@@ -78,6 +78,8 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     profiles:
       - phase2
+      - phase3
+      - phase4
     deploy:
       resources:
         reservations:
@@ -108,6 +110,7 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     profiles:
       - phase3
+      - phase4
     deploy:
       resources:
         reservations:
@@ -118,10 +121,11 @@ services:
 
   # API Gateway (Phase 4 - to be implemented)
   api-gateway:
+    image: api-gateway-service:latest
     build:
       context: ./services/api-gateway
       dockerfile: Dockerfile
-    container_name: api-gateway
+    container_name: api-gateway-service
     ports:
       - "8000:8000"
     environment:
@@ -130,10 +134,14 @@ services:
       - LLM_SERVICE_URL=http://llm-service:8000
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=api-gateway
+      - ENVIRONMENT=development
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
     volumes:
       - ./services/api-gateway:/app
     depends_on:
       - document-processing
+      - vector-db
+      - llm-service
       - redis
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     profiles:

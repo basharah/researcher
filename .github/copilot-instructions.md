@@ -2,23 +2,26 @@
 
 ## Project Architecture & Big Picture
 
-**Microservices-based** research paper analysis system with Phase 1 & 2 complete. Services communicate via HTTP, share PostgreSQL + pgvector for storage, and use Redis for caching.
+**Microservices-based** research paper analysis system with Phases 1-4 complete. Services communicate via HTTP through a unified API Gateway, share PostgreSQL + pgvector for storage, and use Redis for caching.
 
 ### Service Communication Pattern
 ```
-PDF Upload → Document Processing (8001) → Background Task → Vector DB (8002)
-                    ↓                                            ↓
-                PostgreSQL (documents table)         PostgreSQL (document_chunks + embeddings)
+Frontend (8000) → API Gateway (8000) → Document Processing (8001)
+                                     → Vector DB (8002)
+                                     → LLM Service (8003)
+                                            ↓
+                                    PostgreSQL + Redis
 ```
 
-**Key Insight**: Document upload returns immediately to user, while Vector DB processing happens asynchronously via `BackgroundTasks`. This prevents timeouts during embedding generation (~30s-5min on first load).
+**Key Insight**: API Gateway provides a single entry point, orchestrating multi-service workflows. Document upload returns immediately while Vector DB processing happens asynchronously via `BackgroundTasks`.
 
-### Active Services (Phases 1-3 Complete)
+### Active Services (Phases 1-4 Complete)
+- **API Gateway** (port 8000): Unified API orchestrating all services, CORS-enabled for frontend, health monitoring, request statistics
 - **Document Processing** (port 8001): PDF upload, extraction (text, tables, figures, refs), stores in PostgreSQL
 - **Vector DB** (port 8002): Text chunking (500 chars, 50 overlap), sentence-transformers embeddings (384d), semantic search via pgvector, **GPU-accelerated** for faster embedding generation
 - **LLM Service** (port 8003): AI-powered analysis using OpenAI/Anthropic, RAG-enabled Q&A, document comparison, interactive chat
 - **PostgreSQL**: Shared database with `documents` and `document_chunks` tables, pgvector extension enabled
-- **Redis**: Currently minimal usage, prepared for caching/sessions
+- **Redis**: Shared cache, prepared for rate limiting and session management
 
 ### GPU Configuration
 System has **2 NVIDIA GPUs** (RTX 2080 Ti 11GB, GTX 960 4GB):
@@ -28,17 +31,17 @@ System has **2 NVIDIA GPUs** (RTX 2080 Ti 11GB, GTX 960 4GB):
 - Sentence-transformers automatically detects and uses CUDA when available
 
 ### Placeholders (Future Phases)
-- API Gateway (8000), Frontend - basic structure exists but not implemented
+- Frontend - React chat interface (Phase 5)
 
 ## Critical Developer Workflows
 
 ### Starting the System
 ```bash
-# Start all Phase 1-3 services (recommended)
-docker-compose up -d postgres redis document-processing vector-db llm-service
+# Start all Phase 1-4 services (recommended)
+docker-compose --profile phase4 up -d
 
-# Or use profiles
-docker-compose --profile phase3 up -d
+# Or manually
+docker-compose up -d postgres redis document-processing vector-db llm-service api-gateway
 
 # Quick start script available: ./start.sh (Linux/Mac)
 ```
@@ -47,26 +50,33 @@ docker-compose --profile phase3 up -d
 
 **LLM Service**: Requires `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in `.env`. Service starts without keys but endpoints will fail.
 
+**API Gateway**: Provides unified access at `http://localhost:8000/api/v1/`. Frontend should use this endpoint.
+
 ### Testing Services
 ```bash
-# Document Processing health (includes Vector DB status)
-curl http://localhost:8001/health
+# API Gateway health (checks all services)
+curl http://localhost:8000/api/v1/health
 
-# Upload PDF and trigger background processing
-curl -X POST -F "file=@paper.pdf" http://localhost:8001/api/v1/upload
+# Upload via Gateway
+curl -X POST -F "file=@paper.pdf" http://localhost:8000/api/v1/upload
 
-# Semantic search across documents
-curl -X POST http://localhost:8001/api/v1/search \
+# Semantic search via Gateway
+curl -X POST http://localhost:8000/api/v1/search \
   -H "Content-Type: application/json" \
   -d '{"query": "machine learning methodology", "max_results": 5}'
 
-# LLM analysis (requires API key)
-curl -X POST http://localhost:8003/api/v1/analyze \
+# LLM analysis via Gateway
+curl -X POST http://localhost:8000/api/v1/analyze \
   -H "Content-Type: application/json" \
   -d '{"document_id": 1, "analysis_type": "summary"}'
 
-# Integration test script (comprehensive)
-./test-phase2-integration.sh
+# Complete workflow (upload + analyze)
+curl -X POST "http://localhost:8000/api/v1/workflow/upload-and-analyze?analysis_type=summary" \
+  -F "file=@paper.pdf"
+
+# Integration test scripts
+./test-phase2-integration.sh  # Vector DB integration
+./test-phase4-integration.sh  # API Gateway workflow (when created)
 ```
 
 ### Database Migrations (Alembic)
@@ -187,11 +197,18 @@ result = await vector_client.process_document(...)
 - `PHASE2_INTEGRATION_COMPLETE.md`: Vector DB integration guide
 - `PHASE3_LLM_SERVICE.md`: LLM service features and API examples
 - `services/document-processing/vector_client.py`: Inter-service HTTP communication pattern
+**Must-read for understanding architecture:**
+- `docker-compose.yml`: Service definitions, ports, dependencies, profiles
+- `PHASE2_INTEGRATION_COMPLETE.md`: Vector DB integration guide
+- `PHASE3_LLM_SERVICE.md`: LLM service features and API examples
+- `PHASE4_API_GATEWAY.md`: API Gateway documentation and usage
+- `services/document-processing/vector_client.py`: Inter-service HTTP communication pattern
 - `services/document-processing/utils/pdf_parser.py`: Comprehensive extraction (700+ lines)
 - `services/vector-db/text_chunker.py`: Chunking strategy with overlap
 - `services/vector-db/embedding_service.py`: Sentence-transformers integration
 - `services/llm-service/prompts.py`: LLM prompt templates for different analysis types
 - `services/llm-service/llm_client.py`: OpenAI/Anthropic client wrapper
+- `services/api-gateway/service_client.py`: Unified HTTP client for all services
 
 **Service-specific patterns:**
 - `services/*/config.py`: Pydantic settings for each service
@@ -208,7 +225,7 @@ result = await vector_client.process_document(...)
    - Docker Compose version ≥ 1.28 (for `deploy.resources.reservations`)
    - Rebuild image after requirements.txt change: `docker-compose build vector-db`
 
-3. **Port confusion**: Document Processing is 8001 (not 8000). API Gateway will use 8000 in Phase 4.
+3. **Port confusion**: Document Processing is 8001 (not 8000). API Gateway uses 8000 for unified access.
 
 4. **Docker network URLs**: Services use `http://vector-db:8000` internally, `http://localhost:8002` externally.
 

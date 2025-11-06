@@ -1,19 +1,91 @@
+"""
+API Gateway Service - Main Application
+Unified entry point for all microservices
+"""
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import logging
+import sys
 
-app = FastAPI(
-    title="API Gateway",
-    description="Gateway to orchestrate all microservices (Phase 4 - To be implemented)",
-    version="1.0.0"
+from config import settings
+from api import api_router
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
+
+logger = logging.getLogger(__name__)
+
+# Create FastAPI app
+app = FastAPI(
+    title="Research Paper Analysis API Gateway",
+    description="Unified API for Document Processing, Vector DB, and LLM services",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# CORS middleware - Allow frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API routes
+app.include_router(api_router, prefix=settings.api_prefix)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Log startup information"""
+    logger.info("=" * 60)
+    logger.info("API Gateway Service Starting")
+    logger.info("=" * 60)
+    logger.info(f"Service: {settings.service_name}")
+    logger.info(f"API Prefix: {settings.api_prefix}")
+    logger.info(f"CORS Origins: {settings.cors_origins}")
+    logger.info("")
+    logger.info("Backend Services:")
+    logger.info(f"  - Document Processing: {settings.document_service_url}")
+    logger.info(f"  - Vector DB: {settings.vector_service_url}")
+    logger.info(f"  - LLM Service: {settings.llm_service_url}")
+    logger.info("")
+    logger.info(f"Request Timeout: {settings.request_timeout}s")
+    if settings.enable_rate_limiting:
+        logger.info(f"Rate Limiting: {settings.rate_limit_requests} requests per minute")
+    logger.info("=" * 60)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown"""
+    logger.info("API Gateway Service Shutting Down")
+
 
 @app.get("/")
 async def root():
+    """Root endpoint - Basic info"""
     return {
         "service": "API Gateway",
-        "status": "Phase 4 - To be implemented",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/docs",
+        "api": settings.api_prefix
     }
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,  # Development only
+        log_level="info"
+    )
