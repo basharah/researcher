@@ -1,5 +1,4 @@
 services:
-  # PostgreSQL Database with pgvector extension
   postgres:
     image: ankane/pgvector:latest
     container_name: researcher-postgres
@@ -17,7 +16,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis for caching and session management
   redis:
     image: redis:7-alpine
     container_name: researcher-redis
@@ -31,9 +29,8 @@ services:
       timeout: 3s
       retries: 5
 
-  # Document Processing Service (Phase 1)
   document-processing:
-    image: document-processing-service:latest
+    image: researcher-document-processing-service:latest
     build:
       context: ./services/document-processing
       dockerfile: Dockerfile
@@ -54,9 +51,8 @@ services:
         condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Vector Database Service (Phase 2 - to be implemented)
   vector-db:
-    image: vector-db-service:latest
+    image: researcher-vector-db-service:latest
     build:
       context: ./services/vector-db
       dockerfile: Dockerfile
@@ -67,7 +63,7 @@ services:
       - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=vector-db
-      - CUDA_VISIBLE_DEVICES=0  # Use first GPU (RTX 2080 Ti)
+      - CUDA_VISIBLE_DEVICES=0
     volumes:
       - ./services/vector-db:/app
     depends_on:
@@ -88,8 +84,8 @@ services:
               count: 1
               capabilities: [gpu]
 
-  # LLM Service (Phase 3 - to be implemented)
   llm-service:
+    image: researcher-llm-service:latest
     build:
       context: ./services/llm-service
       dockerfile: Dockerfile
@@ -119,9 +115,8 @@ services:
               count: 1
               capabilities: [gpu]
 
-  # API Gateway (Phase 4 - to be implemented)
   api-gateway:
-    image: api-gateway-service:latest
+    image: researcher-api-gateway-service:latest
     build:
       context: ./services/api-gateway
       dockerfile: Dockerfile
