@@ -1,4 +1,8 @@
-# 🎉 Project Setup Complete!
+# Documentation moved
+
+This guide now lives at `docs/GETTING_STARTED.md`.
+
+Please use the docs/ version going forward.
 
 ## What's Been Created
 

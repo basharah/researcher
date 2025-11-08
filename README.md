@@ -1,19 +1,25 @@
-# Research Paper Analysis Chatbot - Microservices Project
+# Research Paper Analysis Chatbot
 
-A microservices-based chatbot system for analyzing research papers, extracting literature reviews, and conducting research assistance. Built with a gradual learning approach where each service is developed incrementally.
+All core phases (1–5 backend + initial frontend scaffold) are complete. This README reflects the consolidated structure (docs/, scripts/, tests/) and migration-first startup pattern.
 
 ## 🎯 Project Overview
 
-### Documentation hub
-All documentation has been consolidated under `docs/`. Start here:
-- Docs index: docs/INDEX.md
-- Phase 2 details: docs/PHASE2_INTEGRATION_COMPLETE.md
-- LLM service: docs/PHASE3_LLM_SERVICE.md
-- API Gateway: docs/PHASE4_API_GATEWAY.md and docs/PHASE4_COMPLETE.md
-- Auth guides: docs/AUTHENTICATION_GUIDE.md (with quick ref)
-- GPU setup: docs/GPU_SETUP.md
+### Documentation Hub
 
-This project implements a complete chatbot system for research paper analysis using microservices architecture. Each service is independent and can be developed, tested, and deployed separately.
+Primary entry point: `docs/INDEX.md`
+
+Selected quick links:
+
+- Phase 2 (Vector DB Integration): `docs/PHASE2_INTEGRATION_COMPLETE.md`
+- Phase 3 (LLM Service): `docs/PHASE3_LLM_SERVICE.md`
+- Phase 4 (API Gateway): `docs/PHASE4_API_GATEWAY.md`, `docs/PHASE4_COMPLETE.md`
+- Phase 5 (Frontend Overview): `docs/PHASE5_FRONTEND.md`
+- Authentication Guides: `docs/AUTHENTICATION_GUIDE.md`, `docs/AUTH_QUICK_REF.md`
+- GPU Setup & Configuration: `docs/GPU_SETUP.md`, `docs/GPU_CONFIGURATION.md`
+- User Storage & Migration: `docs/USER_STORAGE_GUIDE.md`, `docs/POSTGRESQL_USER_STORAGE_COMPLETE.md`
+- Extraction Testing Summary: `docs/EXTRACTION_TESTING_SUMMARY.md`
+
+The system is a production-style microservices platform for research paper analysis with PDF ingestion, rich extraction (tables, figures, references, metadata), semantic vector search, RAG-enhanced LLM analysis, an API gateway, and GPU acceleration.
 
 ### Key Features
 
@@ -24,7 +30,7 @@ This project implements a complete chatbot system for research paper analysis us
 
 ## 🏗️ Architecture
 
-```
+```text
 ┌─────────────────┐
 │    Frontend     │ (React Chat Interface)
 │   (Phase 5)     │
@@ -52,56 +58,69 @@ This project implements a complete chatbot system for research paper analysis us
 ## 📚 Technology Stack
 
 ### Backend Services
+
 - **Framework**: Python FastAPI
 - **Database**: PostgreSQL with pgvector extension
 - **Cache**: Redis
 - **Containerization**: Docker & Docker Compose
 
 ### AI/ML Libraries
+
 - **PDF Processing**: PyPDF2, pdfplumber
 - **Embeddings**: Sentence Transformers
 - **LLM Integration**: LangChain, OpenAI API, Anthropic Claude
 
 ### Frontend
+
 - **Framework**: React
 - **State Management**: Context API / Redux
 - **HTTP Client**: Axios
 
-## 🚀 Getting Started
+## 🚀 Quick Start (Migration-First Stack)
 
-### Prerequisites
+Prerequisites:
 
-- Docker and Docker Compose
-- Python 3.11+ (for local development)
-- Node.js 18+ (for frontend development)
-- OpenAI or Anthropic API key (for Phase 3)
-- **NVIDIA GPU + Container Toolkit (optional, for GPU acceleration)** - see [docs/GPU_SETUP.md](docs/GPU_SETUP.md)
+- Docker / Docker Compose
+- NVIDIA GPU (optional) with container toolkit (see `docs/GPU_SETUP.md`)
+- OpenAI / Anthropic API keys for LLM features (optional until Phase 3 use)
 
-### Quick Start
+Startup (all core services, applies migrations before bring-up):
 
-1. **Clone and setup**
-   ```bash
-   cd researcher
-   cp .env.example .env
-   # Edit .env and add your API keys
-   ```
+```bash
+./scripts/start.sh  # or ./start.sh (legacy root script maintained)
+```
 
-2. **Start Phase 1 (Document Processing)**
-   ```bash
-   docker-compose up postgres redis document-processing
-   ```
+Health check:
 
-3. **Access the service**
-   - Document Processing API: http://localhost:8001
-   - API Documentation: http://localhost:8001/docs
-   - PostgreSQL: localhost:5432
-   - Redis: localhost:6379
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+If running only document-processing service:
+
+```bash
+docker-compose up -d postgres redis document-processing
+```
+
+Access points:
+
+- API Gateway unified endpoint: [http://localhost:8000/api/v1/](http://localhost:8000/api/v1/)
+- Document Processing (direct): [http://localhost:8001](http://localhost:8001)
+- Vector DB: [http://localhost:8002](http://localhost:8002)
+- LLM Service: [http://localhost:8003](http://localhost:8003)
+
+GPU verification:
+
+```bash
+./scripts/verify-gpu.sh
+```
 
 ## 📖 Learning Path - Build Gradually
 
-### **Phase 1: Document Processing Service** ✅ (Current Phase)
+### **Phase 1: Document Processing Service** ✅ (Complete)
 
 **What You'll Learn:**
+
 - FastAPI basics and REST API design
 - PDF text extraction techniques
 - Database modeling with SQLAlchemy
@@ -109,12 +128,14 @@ This project implements a complete chatbot system for research paper analysis us
 - Docker containerization
 
 **Tasks:**
+
 1. ✅ Upload PDF research papers
 2. ✅ Extract text and metadata
 3. ✅ Parse sections (abstract, introduction, etc.)
 4. ✅ Store in PostgreSQL database
 
 **Get Started:**
+
 ```bash
 cd services/document-processing
 pip install -r requirements.txt
@@ -122,6 +143,7 @@ uvicorn main:app --reload --port 8001
 ```
 
 **Test it:**
+
 ```bash
 # Upload a PDF
 curl -X POST "http://localhost:8001/upload" \
@@ -133,6 +155,7 @@ curl "http://localhost:8001/documents"
 ```
 
 **Next Steps:**
+
 - [ ] Add support for DOI extraction
 - [ ] Implement batch upload
 - [ ] Add OCR for scanned PDFs
@@ -140,35 +163,40 @@ curl "http://localhost:8001/documents"
 
 ---
 
-### **Phase 2: Vector Database Service** 🔲 (To be implemented)
+### **Phase 2: Vector Database Service** ✅ (Complete)
 
 **What You'll Learn:**
+
 - Vector embeddings and semantic search
 - Working with pgvector extension
 - Sentence transformers
 - Similarity search algorithms
 
 **Features to Implement:**
+
 1. Generate embeddings for documents
 2. Store vectors in PostgreSQL with pgvector
 3. Implement semantic search
 4. Create similar documents endpoint
 
 **Learning Resources:**
+
 - [pgvector documentation](https://github.com/pgvector/pgvector)
 - [Sentence Transformers](https://www.sbert.net/)
 
 ---
 
-### **Phase 3: LLM Service** 🔲 (To be implemented)
+### **Phase 3: LLM Service** ✅ (Complete)
 
 **What You'll Learn:**
+
 - LangChain framework
 - Prompt engineering
 - OpenAI/Claude API integration
 - Token management and cost optimization
 
 **Features to Implement:**
+
 1. Literature review extraction
 2. Research gap identification
 3. Methodology comparison
@@ -176,20 +204,23 @@ curl "http://localhost:8001/documents"
 5. Question answering over documents
 
 **Learning Resources:**
+
 - [LangChain Documentation](https://python.langchain.com/)
 - [OpenAI API](https://platform.openai.com/docs)
 
 ---
 
-### **Phase 4: API Gateway** 🔲 (To be implemented)
+### **Phase 4: API Gateway** ✅ (Complete)
 
 **What You'll Learn:**
+
 - Service orchestration
 - API composition patterns
 - Load balancing
 - Error handling across services
 
 **Features to Implement:**
+
 1. Unified API endpoint
 2. Request routing
 3. Service health monitoring
@@ -198,9 +229,10 @@ curl "http://localhost:8001/documents"
 
 ---
 
-### **Phase 5: Frontend** 🔲 (To be implemented)
+### **Phase 5: Frontend** ✅ (Initial scaffold & integration complete)
 
 **What You'll Learn:**
+
 - React application structure
 - State management
 - WebSocket for real-time chat
@@ -208,6 +240,7 @@ curl "http://localhost:8001/documents"
 - Results visualization
 
 **Features to Implement:**
+
 1. Chat interface
 2. Document upload widget
 3. Search and filter documents
@@ -227,14 +260,14 @@ pytest
 docker-compose -f docker-compose.test.yml up
 ```
 
-## 📊 Project Structure
+## 📊 Current Project Structure
 
-```
+```text
 researcher/
 ├── .github/
 │   └── copilot-instructions.md    # Project context for AI
 ├── services/
-│   ├── document-processing/       # Phase 1 ✅
+│   ├── document-processing/       # Phase 1
 │   │   ├── main.py
 │   │   ├── models.py
 │   │   ├── database.py
@@ -242,15 +275,18 @@ researcher/
 │   │   ├── requirements.txt
 │   │   ├── Dockerfile
 │   │   └── README.md
-│   ├── vector-db/                 # Phase 2 🔲
+│   ├── vector-db/                 # Phase 2
 │   │   ├── main.py
 │   │   ├── requirements.txt
 │   │   └── Dockerfile
-│   ├── llm-service/               # Phase 3 🔲
+│   ├── llm-service/               # Phase 3
 │   │   ├── main.py
 │   │   ├── requirements.txt
 │   │   └── Dockerfile
-│   └── api-gateway/               # Phase 4 🔲
+│   └── api-gateway/               # Phase 4
+├── docs/                          # Consolidated documentation (see INDEX.md)
+├── scripts/                       # Test / utility scripts (start, gpu, integration)
+├── tests/                         # Python test scripts (extraction, vector db)
 │       ├── main.py
 │       ├── requirements.txt
 │       └── Dockerfile
@@ -259,12 +295,12 @@ researcher/
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
-└── README.md
+└── README.md                      # This file
 ```
 
 ## 🔧 Development Tips
 
-### Running Individual Services
+### Running Individual Services (Profiles)
 
 Each service can run independently:
 
@@ -282,7 +318,7 @@ docker-compose --profile phase3 up
 docker-compose --profile phase4 up
 ```
 
-### Local Development
+### Local Development (Single Service)
 
 ```bash
 # Set up Python virtual environment
@@ -297,7 +333,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8001
 ```
 
-### Database Migrations
+### Database Migrations (Manual Invocation)
 
 ```bash
 # Create migration
@@ -312,14 +348,15 @@ alembic upgrade head
 
 Each service provides interactive API documentation via Swagger UI:
 
-- Document Processing: http://localhost:8001/docs
-- Vector DB: http://localhost:8002/docs
-- LLM Service: http://localhost:8003/docs
-- API Gateway: http://localhost:8000/docs
+- Document Processing: [http://localhost:8001/docs](http://localhost:8001/docs)
+- Vector DB: [http://localhost:8002/docs](http://localhost:8002/docs)
+- LLM Service: [http://localhost:8003/docs](http://localhost:8003/docs)
+- API Gateway: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## 🤝 Contributing
 
 This is a learning project! Feel free to:
+
 - Improve existing services
 - Add new features
 - Optimize performance
@@ -328,14 +365,17 @@ This is a learning project! Feel free to:
 ## 📚 Learning Resources
 
 ### Microservices
+
 - [Microservices Patterns](https://microservices.io/patterns/index.html)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 
 ### AI/ML for Research
+
 - [LangChain for Research](https://python.langchain.com/docs/use_cases/question_answering/)
 - [Semantic Scholar API](https://www.semanticscholar.org/product/api)
 
 ### Vector Databases
+
 - [Vector Database Guide](https://www.pinecone.io/learn/vector-database/)
 
 ## 🎓 Next Steps After Completion
@@ -346,7 +386,7 @@ Once you've completed all phases:
 2. **Add Monitoring**: Prometheus, Grafana
 3. **Implement CI/CD**: GitHub Actions
 4. **Scale Services**: Kubernetes
-5. **Add More Features**: 
+5. **Add More Features**:
    - Citation network visualization
    - Automated systematic reviews
    - Research trend analysis
@@ -361,12 +401,14 @@ MIT License - Feel free to use for learning and personal projects
 ### Common Issues
 
 **Port already in use:**
+
 ```bash
 # Find and kill process
 lsof -ti:8001 | xargs kill -9
 ```
 
 **Database connection failed:**
+
 ```bash
 # Check PostgreSQL is running
 docker-compose ps postgres
@@ -375,6 +417,7 @@ docker-compose logs postgres
 ```
 
 **Import errors:**
+
 ```bash
 # Rebuild containers
 docker-compose build --no-cache
@@ -382,6 +425,37 @@ docker-compose build --no-cache
 
 ---
 
-**Happy Learning! 🚀**
+## 🔒 Authentication & User Storage
 
-Start with Phase 1 and gradually build your knowledge of microservices, AI, and full-stack development!
+Phase 4 includes full JWT auth (access + refresh), API keys, role-based access, and PostgreSQL user/token storage. See `docs/AUTHENTICATION_IMPLEMENTATION.md` and `docs/USER_STORAGE_GUIDE.md`.
+
+## 🧠 Retrieval-Augmented Generation (RAG)
+
+The LLM service performs document-aware analysis using semantic search results from the Vector DB (MiniLM 384-d embeddings). GPU acceleration is enabled for embeddings when available.
+
+## ⚙️ Performance & GPU
+
+Vector DB embeddings run on GPU 0; LLM can target GPU 1 for local models (future expansion). See `docs/GPU_CONFIGURATION.md`.
+
+## 🧪 Testing & Scripts
+
+Integration and feature test scripts now under `scripts/`:
+
+- Phase 2 integration: `scripts/test-phase2-integration.sh`
+- API Gateway integration: `scripts/test-phase4-integration.sh`
+- Extraction endpoints: `scripts/test-extraction-endpoints.sh`
+- Auth flow (PostgreSQL): `scripts/test-auth-postgresql.sh`
+- GPU verification & workload: `scripts/verify-gpu.sh`, `scripts/test-gpu.sh`
+
+Python tests in `tests/` (transitioning toward pytest harness):
+
+- `tests/test_comprehensive.py`
+- `tests/test_vector_db.py`
+- `tests/test.py`
+
+## 🧼 Ongoing Cleanup
+
+Remaining cleanup tasks tracked internally: markdown lint adjustments, root doc stubs, expanding automated test coverage, and de-duplicating legacy root markdown files.
+
+---
+**System ready.** Explore `docs/INDEX.md`, run `./scripts/start.sh`, and begin leveraging the full research workflow.

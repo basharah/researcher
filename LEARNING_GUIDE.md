@@ -1,4 +1,8 @@
-# Phase 1 Learning Guide: Document Processing Service
+# Documentation moved
+
+This learning guide now lives at `docs/LEARNING_GUIDE.md`.
+
+Refer to the docs/ version for current content.
 
 Welcome to Phase 1 of building the Research Paper Analysis Chatbot! This guide will help you understand what you've built and how to extend it.
 
