@@ -15,7 +15,7 @@ The API Gateway provides a **unified entry point** for all backend microservices
 
 ## Architecture
 
-```
+```text
 ┌─────────────┐
 │   Frontend  │
 │ (Phase 5)   │
@@ -32,10 +32,10 @@ The API Gateway provides a **unified entry point** for all backend microservices
 └──┬─────┬─────┬──────┘
    │     │     │
    ▼     ▼     ▼
-┌────┐ ┌───┐ ┌────┐
-│Doc │ │Vec│ │LLM │
-│8001│ │820│ │8003│
-└────┘ └───┘ └────┘
+┌────┐ ┌────┐ ┌────┐
+│Doc │ │Vec  │ │LLM │
+│8001│ │8002 │ │8003│
+└────┘ └────┘ └────┘
 ```
 
 ### Service Communication

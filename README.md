@@ -453,6 +453,12 @@ Python tests in `tests/` (transitioning toward pytest harness):
 - `tests/test_vector_db.py`
 - `tests/test.py`
 
+Pytest configuration added in `pytest.ini` – run all tests:
+
+```bash
+pytest
+```
+
 ## 🧼 Ongoing Cleanup
 
 Remaining cleanup tasks tracked internally: markdown lint adjustments, root doc stubs, expanding automated test coverage, and de-duplicating legacy root markdown files.

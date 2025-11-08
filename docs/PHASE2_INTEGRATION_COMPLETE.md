@@ -25,7 +25,7 @@ Successfully integrated the Vector Database Service with the Document Processing
 
 ### Data Flow
 
-```
+```text
 1. User uploads PDF
    ↓
 2. Document Processing Service

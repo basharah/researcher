@@ -128,7 +128,7 @@ docker exec llm-service nvidia-smi
 
 When Vector DB starts with GPU, you should see:
 
-```
+```text
 Loading embedding model: sentence-transformers/all-MiniLM-L6-v2
 Device: cuda
 GPU: NVIDIA GeForce RTX 2080 Ti

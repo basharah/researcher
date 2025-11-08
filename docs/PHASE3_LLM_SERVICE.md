@@ -47,7 +47,7 @@ The LLM Service provides AI-powered analysis of research papers using large lang
 
 ## Architecture
 
-```
+```text
 ┌─────────────┐
 │ LLM Service │
 │  (Port 8003) │
@@ -282,12 +282,14 @@ docker-compose logs -f
 ### API Documentation
 
 Interactive API docs available at:
-- **Swagger UI**: http://localhost:8003/docs
-- **ReDoc**: http://localhost:8003/redoc
+
+- **Swagger UI**: [http://localhost:8003/docs](http://localhost:8003/docs)
+- **ReDoc**: [http://localhost:8003/redoc](http://localhost:8003/redoc)
 
 ## Service Files Created
 
 ### Core Service Files
+
 - ✅ `config.py` - Configuration with Pydantic Settings
 - ✅ `schemas.py` - Request/Response models
 - ✅ `llm_client.py` - OpenAI/Anthropic client wrapper
@@ -296,22 +298,26 @@ Interactive API docs available at:
 - ✅ `main.py` - FastAPI application with startup logic
 
 ### API Structure
+
 - ✅ `api/__init__.py` - API router configuration
 - ✅ `api/v1/__init__.py` - v1 router
 - ✅ `api/v1/endpoints.py` - All endpoints (analyze, question, compare, chat, health)
 
-### Configuration
+### Build & Packaging
+
 - ✅ `requirements.txt` - Updated dependencies
 - ✅ `Dockerfile` - Already existed, works as-is
 
 ## Integration with Other Services
 
 ### Vector DB Integration (RAG)
+
 - Semantic search for relevant document chunks
 - Context-aware question answering
 - Source citation in responses
 
 ### Document Processing Integration
+
 - Retrieve full documents
 - Access specific sections (abstract, methodology, etc.)
 - Multi-document analysis support
@@ -319,18 +325,21 @@ Interactive API docs available at:
 ## Performance Considerations
 
 ### Response Times (typical)
+
 - **Summary**: 3-5 seconds (GPT-4)
 - **Question** (with RAG): 2-4 seconds
 - **Comparison**: 5-8 seconds
 - **Chat**: 2-3 seconds per turn
 
 ### Token Usage
+
 - **Summary**: 2000-4000 tokens
 - **Question**: 300-800 tokens
 - **Comparison**: 3000-6000 tokens
 - **Chat**: 200-500 tokens per turn
 
 ### Cost Estimates (GPT-4)
+
 - **Summary**: ~$0.10-0.20 per paper
 - **Question**: ~$0.02-0.05 per question
 - **Comparison**: ~$0.20-0.40 per comparison
@@ -340,17 +349,18 @@ Interactive API docs available at:
 1. **Add API Key**: Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in `.env`
 
 2. **Test with Real Papers**:
-   ```bash
-   # Upload a paper first
-   curl -X POST -F "file=@paper.pdf" http://localhost:8001/api/v1/upload
-   
-   # Then analyze it
-   curl -X POST http://localhost:8003/api/v1/analyze \
-     -H "Content-Type: application/json" \
-     -d '{"document_id": 1, "analysis_type": "summary"}'
-   ```
 
-3. **Explore API Docs**: Visit http://localhost:8003/docs for interactive testing
+```bash
+# Upload a paper first
+curl -X POST -F "file=@paper.pdf" http://localhost:8001/api/v1/upload
+
+# Then analyze it
+curl -X POST http://localhost:8003/api/v1/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"document_id": 1, "analysis_type": "summary"}'
+```
+
+3. **Explore API Docs**: Visit [http://localhost:8003/docs](http://localhost:8003/docs) for interactive testing
 
 4. **Monitor Usage**: Track tokens and costs in logs
 
@@ -366,6 +376,27 @@ Interactive API docs available at:
 - [ ] Citation extraction and analysis
 
 ## Troubleshooting
+
+### "No LLM provider configured"
+
+- Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in `.env`
+- Rebuild and restart: `docker-compose up -d --build llm-service`
+
+### "Document not found"
+
+- Upload document first to Document Processing Service
+- Check document ID exists: `curl http://localhost:8001/api/v1/documents`
+
+### "Vector DB unavailable"
+
+- Start Vector DB: `docker-compose up -d vector-db`
+- Check health: `curl http://localhost:8002/health`
+
+### High latency
+
+- Use `gpt-3.5-turbo` for faster responses
+- Reduce `max_tokens`
+- Disable RAG for simple queries
 
 ### "No LLM provider configured"
 - Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in `.env`
@@ -386,9 +417,10 @@ Interactive API docs available at:
 
 ## API Reference
 
-Full API documentation: **http://localhost:8003/docs**
+Full API documentation: **[http://localhost:8003/docs](http://localhost:8003/docs)**
 
 Available analysis types:
+
 - `summary` - Comprehensive paper summary
 - `literature_review` - Literature review extraction
 - `key_findings` - Key findings identification
@@ -399,5 +431,6 @@ Available analysis types:
 - `custom` - Custom analysis with user prompt
 
 Supported models:
+
 - OpenAI: `gpt-4-turbo-preview`, `gpt-3.5-turbo`
 - Anthropic: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`

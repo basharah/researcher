@@ -56,6 +56,7 @@ docker-compose up -d api-gateway
 ### 3. Initialize Admin User
 
 On first startup, create the admin user:
+
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
@@ -65,8 +66,6 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
     "full_name": "System Administrator"
   }'
 ```
-
-## Authentication Flow
 
 ### Register New User
 
@@ -82,6 +81,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
 ```
 
 **Password Requirements:**
+
 - Minimum 8 characters
 - At least 1 uppercase letter
 - At least 1 lowercase letter
@@ -342,7 +342,7 @@ curl -X PUT http://localhost:8000/api/v1/auth/admin/users/user_abc123/enable \
 
 ### Architecture
 
-```
+```text
 ┌─────────────┐
 │   Client    │
 └──────┬──────┘
@@ -369,19 +369,6 @@ curl -X PUT http://localhost:8000/api/v1/auth/admin/users/user_abc123/enable \
 ### Token Structure
 
 **Access Token (30 min):**
-```json
-{
-  "sub": "user_abc123",
-  "email": "user@example.com",
-  "exp": 1704545400,
-  "iat": 1704543600
-}
-```
-
-**Refresh Token (7 days):**
-```json
-{
-  "sub": "user_abc123",
   "type": "refresh",
   "exp": 1705148400,
   "iat": 1704543600
@@ -438,29 +425,18 @@ const login = async (email: string, password: string) => {
   localStorage.setItem('refresh_token', data.refresh_token);
   
   return data;
-};
-
-// Authenticated request
-const uploadDocument = async (file: File) => {
   const token = localStorage.getItem('access_token');
   
   const formData = new FormData();
   formData.append('file', file);
   
   const response = await fetch('http://localhost:8000/api/v1/upload', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
     body: formData
   });
   
   if (response.status === 401) {
     // Token expired, refresh
     await refreshToken();
-    // Retry request
-  }
-  
   return response.json();
 };
 
