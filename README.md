@@ -4,6 +4,15 @@ A microservices-based chatbot system for analyzing research papers, extracting l
 
 ## 🎯 Project Overview
 
+### Documentation hub
+All documentation has been consolidated under `docs/`. Start here:
+- Docs index: docs/INDEX.md
+- Phase 2 details: docs/PHASE2_INTEGRATION_COMPLETE.md
+- LLM service: docs/PHASE3_LLM_SERVICE.md
+- API Gateway: docs/PHASE4_API_GATEWAY.md and docs/PHASE4_COMPLETE.md
+- Auth guides: docs/AUTHENTICATION_GUIDE.md (with quick ref)
+- GPU setup: docs/GPU_SETUP.md
+
 This project implements a complete chatbot system for research paper analysis using microservices architecture. Each service is independent and can be developed, tested, and deployed separately.
 
 ### Key Features
@@ -66,7 +75,7 @@ This project implements a complete chatbot system for research paper analysis us
 - Python 3.11+ (for local development)
 - Node.js 18+ (for frontend development)
 - OpenAI or Anthropic API key (for Phase 3)
-- **NVIDIA GPU + Container Toolkit (optional, for GPU acceleration)** - see [GPU_SETUP.md](GPU_SETUP.md)
+- **NVIDIA GPU + Container Toolkit (optional, for GPU acceleration)** - see [docs/GPU_SETUP.md](docs/GPU_SETUP.md)
 
 ### Quick Start
 
