@@ -1,61 +1,42 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Quick Start Script for Research Paper Chatbot
-# This script helps you get started with Phase 1
+# Lightweight e2e start script that ensures DB migrations are applied before bringing
+# up the rest of the services. Uses the one-shot `migrate` service defined in
+# `docker-compose.yml` which runs `alembic upgrade head` and exits with non-zero on
+# failure.
 
-set -e
+set -euo pipefail
 
-echo "🚀 Research Paper Chatbot - Quick Start"
-echo "========================================"
-echo ""
+echo "🚀 Research Paper Chatbot - e2e start (migrate -> compose up)"
 
-# Check if .env exists
+# Ensure .env exists
 if [ ! -f .env ]; then
-    echo "📝 Creating .env file from .env.example..."
-    cp .env.example .env
-    echo "⚠️  Please edit .env and add your API keys before proceeding to Phase 3"
-    echo ""
+    echo "Creating .env from .env.example (edit as needed)..."
+    cp .env.example .env || true
 fi
 
-# Check if Docker is running
+# Check Docker
 if ! docker info > /dev/null 2>&1; then
-    echo "❌ Docker is not running. Please start Docker and try again."
+    echo "Docker doesn't appear to be running. Start Docker and try again." >&2
     exit 1
 fi
 
-echo "🐳 Starting Docker containers for Phase 1..."
-echo ""
-echo "Services starting:"
-echo "  - PostgreSQL (with pgvector)"
-echo "  - Redis"
-echo "  - Document Processing Service"
-echo ""
+echo "🧪 Building images and running migrations (one-shot 'migrate' service)..."
 
-# Start Phase 1 services
-docker-compose up -d postgres redis
+# Build images so the migrate service has the correct image to run
+docker-compose build --pull migrate
 
-echo "⏳ Waiting for database to be ready..."
-sleep 5
+# Run the migrate service as a one-shot. This will run alembic upgrade head inside
+# the document-processing image and then exit. It depends on postgres and redis
+# being healthy (see docker-compose healthchecks). If this fails, the script exits.
+docker-compose run --rm migrate
 
-docker-compose up -d document-processing
+echo "✅ Migrations applied successfully. Starting remaining services..."
 
-echo ""
-echo "✅ Phase 1 is now running!"
-echo ""
-echo "📍 Service URLs:"
-echo "  - Document Processing API: http://localhost:8001"
-echo "  - API Documentation: http://localhost:8001/docs"
-echo "  - PostgreSQL: localhost:5432"
-echo "  - Redis: localhost:6379"
-echo ""
-echo "🧪 Test the service:"
-echo "  curl http://localhost:8001/health"
-echo ""
-echo "📚 Next steps:"
-echo "  1. Visit http://localhost:8001/docs for interactive API documentation"
-echo "  2. Upload a research paper PDF using the /upload endpoint"
-echo "  3. Check the README.md for more information"
-echo ""
-echo "🛑 To stop all services:"
-echo "  docker-compose down"
-echo ""
+# Now bring up the stack (build as needed). Use the phase4 profile which includes
+# the api-gateway and other higher-level services if you want the full stack.
+docker-compose --profile phase4 up -d --build
+
+echo "🌐 All services started. Check health endpoint: http://localhost:8000/api/v1/health"
+echo "To stop everything: docker-compose down"
+

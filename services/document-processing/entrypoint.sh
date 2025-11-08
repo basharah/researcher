@@ -27,14 +27,16 @@ if not url:
 engine = create_engine(url)
 deadline = time.time() + int(os.environ.get('DB_WAIT_SECONDS', '120'))
 while time.time() < deadline:
-        try:
-                with engine.connect() as conn:
-                        conn.execute('SELECT 1')
-                print('Postgres is up')
-                sys.exit(0)
-        except Exception as e:
-                print('Postgres not ready, retrying...', flush=True)
-                time.sleep(int(os.environ.get('DB_CHECK_INTERVAL', '1')))
+    try:
+        with engine.connect() as conn:
+            # SQLAlchemy 2.x: use exec_driver_sql for raw SQL strings
+            conn.exec_driver_sql('SELECT 1')
+        print('Postgres is up')
+        sys.exit(0)
+    except Exception as e:
+        # Print exception details to help debugging connection issues
+        print('Postgres not ready, retrying... exception:', repr(e), flush=True)
+        time.sleep(int(os.environ.get('DB_CHECK_INTERVAL', '1')))
 
 print('Timed out waiting for Postgres', file=sys.stderr)
 sys.exit(1)

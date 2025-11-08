@@ -12,7 +12,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./services/vector-db/sql/init_pgvector.sql:/docker-entrypoint-initdb.d/init_pgvector.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U researcher"]
+      # Check the configured database rather than relying on default DB name
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -d research_papers -U researcher"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,6 +30,26 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  migrate:
+    image: researcher-document-processing-service:latest
+    build:
+      context: ./services/document-processing
+      dockerfile: Dockerfile
+    container_name: migrate-service
+    environment:
+      - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_NAME=migrate
+    volumes:
+      - ./services/document-processing:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: /bin/sh -c "alembic upgrade head"
+
 
   document-processing:
     image: researcher-document-processing-service:latest
@@ -50,6 +71,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   vector-db:
@@ -72,6 +95,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     profiles:
       - phase2
