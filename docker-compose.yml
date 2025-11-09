@@ -48,7 +48,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: /bin/sh -c "alembic upgrade head"
+    # Override the document-processing image entrypoint so this container ONLY runs migrations
+    # and exits. Prevents uvicorn from starting inside the migrate job.
+    entrypoint:
+      - alembic
+      - upgrade
+      - head
 
 
   document-processing:

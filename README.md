@@ -19,6 +19,16 @@ Selected quick links:
 - User Storage & Migration: `docs/USER_STORAGE_GUIDE.md`, `docs/POSTGRESQL_USER_STORAGE_COMPLETE.md`
 - Extraction Testing Summary: `docs/EXTRACTION_TESTING_SUMMARY.md`
 
+### Deep Dives
+
+- Architecture & Data Flows: `docs/INDEX.md` (big-picture and entry points)
+- Vector DB integration details: `docs/PHASE2_INTEGRATION_COMPLETE.md`
+- LLM orchestration and prompts: `docs/PHASE3_LLM_SERVICE.md`
+- API Gateway design & health aggregation: `docs/PHASE4_API_GATEWAY.md`
+- GPU setup, config, and verification: `docs/GPU_SETUP.md`, `docs/GPU_CONFIGURATION.md`
+- Authentication & security model: `docs/AUTHENTICATION_GUIDE.md`, `docs/AUTHENTICATION_IMPLEMENTATION.md`, `docs/AUTH_QUICK_REF.md`
+- User storage migration (Redis → PostgreSQL): `docs/USER_STORAGE_GUIDE.md`, `docs/POSTGRESQL_USER_STORAGE_COMPLETE.md`
+
 The system is a production-style microservices platform for research paper analysis with PDF ingestion, rich extraction (tables, figures, references, metadata), semantic vector search, RAG-enhanced LLM analysis, an API gateway, and GPU acceleration.
 
 ### Key Features

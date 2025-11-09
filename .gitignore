@@ -70,3 +70,5 @@ frontend/dist/
 postgres_data/
 redis_data/
 uploads_data/
+
+.venv

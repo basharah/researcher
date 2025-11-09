@@ -367,17 +367,36 @@ curl -X PUT http://localhost:8000/api/v1/auth/admin/users/user_abc123/enable \
 ```
 
 ### Token Structure
+ 
+Below are example decoded JWT payloads (after base64 decoding). Do not hardcode these values.
 
-**Access Token (30 min):**
+#### Access Token (30 min)
+
+```json
+{
+  "sub": "user_abc123",
+  "type": "access",
+  "role": "user",
+  "iat": 1704543600,
+  "exp": 1704545400
+}
+```
+
+#### Refresh Token (7 days)
+
+```json
+{
+  "sub": "user_abc123",
   "type": "refresh",
-  "exp": 1705148400,
-  "iat": 1704543600
+  "iat": 1704543600,
+  "exp": 1705148400
 }
 ```
 
 ### Password Hashing
 
 Uses **bcrypt** with automatic salt generation:
+
 ```python
 from passlib.context import CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -392,12 +411,13 @@ is_valid = pwd_context.verify("password123", hashed)
 ### Token Blacklisting
 
 When users logout, tokens are added to Redis blacklist:
+
 ```python
 # Store in Redis with expiration = token TTL
 redis_client.setex(
-    f"blacklist:{token}",
-    expires_in_seconds,
-    "1"
+  f"blacklist:{token}",
+  expires_in_seconds,
+  "1"
 )
 ```
 
@@ -408,51 +428,57 @@ Subsequent requests check blacklist before validating token.
 ### React Example
 
 ```typescript
-import { useState } from 'react';
+const API = 'http://localhost:8000/api/v1';
 
-// Login
-const login = async (email: string, password: string) => {
-  const response = await fetch('http://localhost:8000/api/v1/auth/login', {
+type AuthResponse = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+};
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  const res = await fetch(`${API}/auth/login`, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({email, password})
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
   });
-  
-  const data = await response.json();
-  
-  // Store tokens
+  if (!res.ok) throw new Error('Login failed');
+  const data: AuthResponse = await res.json();
   localStorage.setItem('access_token', data.access_token);
   localStorage.setItem('refresh_token', data.refresh_token);
-  
   return data;
-  const token = localStorage.getItem('access_token');
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  const response = await fetch('http://localhost:8000/api/v1/upload', {
-    body: formData
-  });
-  
-  if (response.status === 401) {
-    // Token expired, refresh
-    await refreshToken();
-  return response.json();
-};
+}
 
-// Refresh token
-const refreshToken = async () => {
+function authHeader(): Record<string, string> {
+  const token = localStorage.getItem('access_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function refreshToken(): Promise<void> {
   const refresh = localStorage.getItem('refresh_token');
-  
-  const response = await fetch('http://localhost:8000/api/v1/auth/refresh', {
+  if (!refresh) throw new Error('No refresh token');
+  const res = await fetch(`${API}/auth/refresh`, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({refresh_token: refresh})
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refresh })
   });
-  
-  const data = await response.json();
-  localStorage.setItem('access_token', data.access_token);
-};
+  if (!res.ok) throw new Error('Refresh failed');
+  const data: Partial<AuthResponse> = await res.json();
+  if (data.access_token) localStorage.setItem('access_token', data.access_token);
+}
+
+export async function uploadDocument(file: File): Promise<unknown> {
+  const form = new FormData();
+  form.append('file', file);
+  let res = await fetch(`${API}/upload`, { method: 'POST', headers: authHeader(), body: form });
+  if (res.status === 401) {
+    await refreshToken();
+    res = await fetch(`${API}/upload`, { method: 'POST', headers: authHeader(), body: form });
+  }
+  if (!res.ok) throw new Error('Upload failed');
+  return res.json();
+}
 ```
 
 ## Production Deployment
@@ -505,16 +531,17 @@ For production, replace Redis user storage with PostgreSQL:
 4. Implement proper user lookup by email
 
 Example schema:
+
 ```sql
 CREATE TABLE users (
-    user_id VARCHAR(50) PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    full_name VARCHAR(100),
-    organization VARCHAR(100),
-    role VARCHAR(20) DEFAULT 'user',
-    created_at TIMESTAMP DEFAULT NOW(),
-    disabled BOOLEAN DEFAULT FALSE
+  user_id VARCHAR(50) PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(100),
+  organization VARCHAR(100),
+  role VARCHAR(20) DEFAULT 'user',
+  created_at TIMESTAMP DEFAULT NOW(),
+  disabled BOOLEAN DEFAULT FALSE
 );
 
 CREATE INDEX idx_users_email ON users(email);
@@ -527,6 +554,7 @@ CREATE INDEX idx_users_email ON users(email);
 **Symptom:** All authenticated requests fail with 401
 
 **Solutions:**
+
 - Check token is included in `Authorization: Bearer <token>` header
 - Token may be expired - use refresh token
 - Secret key mismatch - ensure config is consistent
@@ -537,6 +565,7 @@ CREATE INDEX idx_users_email ON users(email);
 **Symptom:** Rate limit exceeded
 
 **Solutions:**
+
 - Wait for rate limit window to reset (60 seconds)
 - Increase `RATE_LIMIT_REQUESTS` in config
 - Use multiple API keys for parallel processing
@@ -547,6 +576,7 @@ CREATE INDEX idx_users_email ON users(email);
 **Symptom:** Logged out users can still access endpoints
 
 **Solutions:**
+
 - Check Redis connection
 - Ensure token extraction in logout endpoint
 - Verify blacklist check in `get_current_user()`

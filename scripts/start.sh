@@ -21,7 +21,7 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "🧪 Building images and running migrations (one-shot 'migrate' service)..."
+echo "🧪 Building migrate image and applying database migrations..."
 
 # Build images so the migrate service has the correct image to run
 docker-compose build --pull migrate
@@ -31,7 +31,7 @@ docker-compose build --pull migrate
 # being healthy (see docker-compose healthchecks). If this fails, the script exits.
 docker-compose run --rm migrate
 
-echo "✅ Migrations applied successfully. Starting remaining services..."
+echo "✅ Migrations completed (alembic upgrade head). Starting remaining services..."
 
 # Now bring up the stack (build as needed). Use the phase4 profile which includes
 # the api-gateway and other higher-level services if you want the full stack.

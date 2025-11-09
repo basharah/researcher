@@ -1,0 +1,38 @@
+{
+  "name": "researcher-dev",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
+  "workspaceFolder": "/workspaces/researcher",
+  "remoteUser": "vscode",
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/common-utils:2": {}
+  },
+  "postCreateCommand": "bash -lc \"echo 'alias docker-compose=\\'docker compose\\'' >> ~/.bashrc; echo 'alias docker-compose=\\'docker compose\\'' >> ~/.zshrc; if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi\"",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-docker",
+        "DavidAnson.vscode-markdownlint"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python3",
+        "python.analysis.typeCheckingMode": "basic",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "forwardPorts": [8000, 8001, 8002, 8003, 5432, 6379],
+  "portsAttributes": {
+    "8000": { "label": "API Gateway" },
+    "8001": { "label": "Document Processing" },
+    "8002": { "label": "Vector DB" },
+    "8003": { "label": "LLM Service" },
+    "5432": { "label": "PostgreSQL" },
+    "6379": { "label": "Redis" }
+  }
+}
