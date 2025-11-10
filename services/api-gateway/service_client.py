@@ -231,6 +231,98 @@ class ServiceClient:
                 return {"status": "unhealthy", "error": f"Status {response.status_code}"}
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
+    
+    # ===== Generic Request Methods =====
+    
+    async def get(
+        self,
+        service: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Generic GET request to a service
+        
+        Args:
+            service: Service name ("document", "vector", "llm")
+            path: API path (should start with /)
+            params: Optional query parameters
+        """
+        service_urls = {
+            "document": self.document_url,
+            "vector": self.vector_url,
+            "llm": self.llm_url
+        }
+        
+        if service not in service_urls:
+            raise ValueError(f"Unknown service: {service}")
+        
+        base_url = service_urls[service]
+        url = f"{base_url}/api/v1{path}"
+        
+        try:
+            async with httpx.AsyncClient(timeout=self.default_timeout) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                from fastapi import HTTPException, status
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+            raise
+        except Exception as e:
+            logger.error(f"GET request failed: {service} {path} - {e}")
+            raise
+    
+    async def post(
+        self,
+        service: str,
+        path: str,
+        json: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        files: Optional[list] = None
+    ) -> Dict[str, Any]:
+        """
+        Generic POST request to a service
+        
+        Args:
+            service: Service name ("document", "vector", "llm")
+            path: API path (should start with /)
+            json: Optional JSON body
+            params: Optional query parameters
+            files: Optional files for multipart upload
+        """
+        service_urls = {
+            "document": self.document_url,
+            "vector": self.vector_url,
+            "llm": self.llm_url
+        }
+        
+        if service not in service_urls:
+            raise ValueError(f"Unknown service: {service}")
+        
+        base_url = service_urls[service]
+        url = f"{base_url}/api/v1{path}"
+        
+        try:
+            async with httpx.AsyncClient(timeout=settings.upload_timeout if files else self.default_timeout) as client:
+                if files:
+                    response = await client.post(url, files=files, params=params)
+                else:
+                    response = await client.post(url, json=json, params=params)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                from fastapi import HTTPException, status
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+            elif e.response.status_code == 400:
+                from fastapi import HTTPException, status
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+            raise
+        except Exception as e:
+            logger.error(f"POST request failed: {service} {path} - {e}")
+            raise
 
 
 # Singleton instance

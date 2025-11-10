@@ -492,3 +492,239 @@ async def get_stats():
         "uptime_seconds": uptime,
         "requests_per_minute": (request_stats["total"] / uptime * 60) if uptime > 0 else 0
     }
+
+
+# ============================================================================
+# Batch Upload & Job Management Endpoints
+# ============================================================================
+
+@router.post("/batch-upload", status_code=status.HTTP_202_ACCEPTED)
+async def batch_upload(files: List[UploadFile] = File(...)):
+    """
+    Upload multiple research papers for batch processing
+    
+    Proxies to Document Processing Service for async batch processing.
+    Returns batch_id for tracking progress.
+    """
+    request_stats["total"] += 1
+    request_stats["document_service"] += 1
+    
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No files provided"
+        )
+    
+    # Validate all files are PDFs
+    for file in files:
+        if not file.filename or not file.filename.endswith('.pdf'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File {file.filename} is not a PDF"
+            )
+    
+    try:
+        client = get_service_client()
+        
+        # Prepare files for multipart upload
+        files_data = []
+        for file in files:
+            content = await file.read()
+            await file.seek(0)  # Reset for potential retry
+            files_data.append(('files', (file.filename, content, 'application/pdf')))
+        
+        result = await client.post(
+            "document",
+            "/batch-upload",
+            files=files_data
+        )
+        
+        logger.info(f"Batch upload successful: {result.get('batch_id')}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Batch upload failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch upload failed: {str(e)}"
+        )
+
+
+@router.get("/jobs/{job_id}")
+async def get_job_status(job_id: str):
+    """
+    Get status and details of a processing job
+    
+    Returns job info with processing steps.
+    """
+    request_stats["total"] += 1
+    request_stats["document_service"] += 1
+    
+    try:
+        client = get_service_client()
+        result = await client.get("document", f"/jobs/{job_id}")
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get job status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get job status: {str(e)}"
+        )
+
+
+@router.get("/jobs")
+async def list_jobs(
+    user_id: Optional[str] = None,
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50
+):
+    """
+    List processing jobs with optional filtering
+    
+    Query params:
+    - user_id: Filter by user ID
+    - status: Filter by job status (pending, processing, completed, failed, cancelled)
+    - skip: Pagination offset
+    - limit: Max results (default 50)
+    """
+    request_stats["total"] += 1
+    request_stats["document_service"] += 1
+    
+    try:
+        client = get_service_client()
+        
+        # Build query params
+        params = {"skip": skip, "limit": limit}
+        if user_id:
+            params["user_id"] = user_id
+        if status:
+            params["status"] = status
+        
+        result = await client.get("document", "/jobs", params=params)
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to list jobs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list jobs: {str(e)}"
+        )
+
+
+@router.get("/batches/{batch_id}")
+async def get_batch_status(batch_id: str):
+    """
+    Get summary and status of all jobs in a batch
+    """
+    request_stats["total"] += 1
+    request_stats["document_service"] += 1
+    
+    try:
+        client = get_service_client()
+        result = await client.get("document", f"/batches/{batch_id}")
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get batch status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get batch status: {str(e)}"
+        )
+
+
+@router.get("/batches")
+async def list_batches(
+    user_id: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 20
+):
+    """
+    List all batches (optionally filtered by user_id)
+    
+    Returns list of batch summaries.
+    """
+    request_stats["total"] += 1
+    request_stats["document_service"] += 1
+    
+    try:
+        client = get_service_client()
+        
+        params = {"skip": skip, "limit": limit}
+        if user_id:
+            params["user_id"] = user_id
+        
+        result = await client.get("document", "/batches", params=params)
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to list batches: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list batches: {str(e)}"
+        )
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """
+    Cancel a processing job
+    
+    Only pending or processing jobs can be cancelled.
+    """
+    request_stats["total"] += 1
+    request_stats["document_service"] += 1
+    
+    try:
+        client = get_service_client()
+        result = await client.post("document", f"/jobs/{job_id}/cancel")
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to cancel job: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cancel job: {str(e)}"
+        )
+
+
+@router.post("/documents/{document_id}/reprocess")
+async def reprocess_document(
+    document_id: int,
+    force_ocr: bool = False
+):
+    """
+    Reprocess an existing document
+    
+    Args:
+        document_id: ID of document to reprocess
+        force_ocr: If True, force OCR even if already applied
+    """
+    request_stats["total"] += 1
+    request_stats["document_service"] += 1
+    
+    try:
+        client = get_service_client()
+        result = await client.post(
+            "document",
+            f"/documents/{document_id}/reprocess",
+            params={"force_ocr": force_ocr}
+        )
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reprocess document: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reprocess document: {str(e)}"
+        )
+

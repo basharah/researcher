@@ -146,6 +146,48 @@ services:
               count: 1
               capabilities: [gpu]
 
+  celery-worker:
+    image: researcher-document-processing-service:latest
+    build:
+      context: ./services/document-processing
+      dockerfile: Dockerfile
+    container_name: celery-worker
+    environment:
+      - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
+      - REDIS_URL=redis://redis:6379
+      - VECTOR_DB_URL=http://vector-db:8000
+      - SERVICE_NAME=celery-worker
+    volumes:
+      - ./services/document-processing:/app
+      - ./uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    entrypoint: []
+    command: celery -A celery_app worker --loglevel=info -Q document_processing,batch_processing,metadata_extraction,ocr_processing --concurrency=2
+    profiles:
+      - phase4
+
+  flower:
+    image: mher/flower:2.0.1
+    container_name: flower-monitor
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - FLOWER_PORT=5555
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    profiles:
+      - phase4
+
   api-gateway:
     image: researcher-api-gateway-service:latest
     build:
@@ -161,6 +203,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=api-gateway
       - ENVIRONMENT=development
+      - DEBUG=true
       - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
     volumes:
       - ./services/api-gateway:/app

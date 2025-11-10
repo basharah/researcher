@@ -349,3 +349,315 @@ async def search_documents(request: SearchRequest):
     
     return SearchResponse(**result)
 
+
+# ============================================================================
+# Batch Upload & Job Management Endpoints
+# ============================================================================
+
+@router.post("/batch-upload")
+async def batch_upload(
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload multiple PDF documents for batch processing
+    
+    Returns batch_id and list of job_ids for tracking
+    """
+    import uuid
+    from tasks import process_batch_task
+    
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No files provided"
+        )
+    
+    # Generate batch ID
+    batch_id = f"batch_{uuid.uuid4().hex[:16]}"
+    
+    # Validate and save all files
+    file_data_list = []
+    saved_files = []  # Track for cleanup on error
+    
+    try:
+        for idx, file in enumerate(files):
+            # Validate file type
+            if not file.filename.lower().endswith('.pdf'):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File {file.filename} is not a PDF"
+                )
+            
+            # Generate safe filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_filename = f"{timestamp}_{idx}_{file.filename}"
+            file_path = settings.upload_dir / safe_filename
+            
+            # Save file
+            with open(file_path, "wb") as f:
+                content = await file.read()
+                f.write(content)
+            
+            saved_files.append(file_path)
+            
+            # Prepare file data for batch task
+            file_data_list.append({
+                'filename': file.filename,
+                'file_path': str(file_path),
+                'file_size': len(content),
+                'index': idx
+            })
+        
+        # Queue batch processing task
+        result = process_batch_task.delay(
+            batch_id=batch_id,
+            file_data_list=file_data_list,
+            user_id=None  # TODO: Get from auth context
+        )
+        
+        logger.info(f"Batch upload queued: {batch_id} with {len(files)} files")
+        
+        return {
+            "success": True,
+            "batch_id": batch_id,
+            "total_files": len(files),
+            "message": f"Batch processing started for {len(files)} files",
+            "task_id": result.id
+        }
+        
+    except Exception as e:
+        # Clean up saved files on error
+        for file_path in saved_files:
+            if file_path.exists():
+                file_path.unlink()
+        
+        logger.error(f"Batch upload failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch upload failed: {str(e)}"
+        )
+
+
+@router.get("/jobs/{job_id}")
+async def get_job_status(job_id: str, db: Session = Depends(get_db)):
+    """
+    Get status and details of a processing job
+    
+    Returns job info with processing steps
+    """
+    from jobs_crud import JobsCRUD
+    
+    job = JobsCRUD.get_job(db, job_id)
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found"
+        )
+    
+    # Get processing steps
+    steps = JobsCRUD.get_job_steps(db, job_id)
+    
+    return {
+        "job": job.to_dict(),
+        "steps": [
+            {
+                "step_name": step.step_name,
+                "status": step.status,
+                "message": step.message,
+                "details": step.details,
+                "duration_ms": step.duration_ms,
+                "timestamp": step.timestamp.isoformat() if step.timestamp else None
+            }
+            for step in steps
+        ]
+    }
+
+
+@router.get("/batches/{batch_id}")
+async def get_batch_status(batch_id: str, db: Session = Depends(get_db)):
+    """
+    Get summary and status of all jobs in a batch
+    """
+    from jobs_crud import JobsCRUD
+    
+    summary = JobsCRUD.get_batch_summary(db, batch_id)
+    
+    if not summary:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Batch {batch_id} not found"
+        )
+    
+    return summary
+
+
+@router.get("/batches")
+async def list_batches(
+    user_id: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """
+    List all batches (optionally filtered by user_id)
+    
+    Returns list of batch summaries
+    """
+    from jobs_crud import JobsCRUD
+    from models import ProcessingJob
+    
+    # Get distinct batch_ids
+    query = db.query(ProcessingJob.batch_id).filter(ProcessingJob.batch_id.isnot(None))
+    
+    if user_id:
+        query = query.filter(ProcessingJob.user_id == user_id)
+    
+    batch_ids = query.distinct().offset(skip).limit(limit).all()
+    batch_ids = [b[0] for b in batch_ids]
+    
+    # Get summary for each batch
+    batches = []
+    for batch_id in batch_ids:
+        summary = JobsCRUD.get_batch_summary(db, batch_id)
+        if summary:
+            batches.append(summary)
+    
+    return {
+        "batches": batches,
+        "total": len(batches)
+    }
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str, db: Session = Depends(get_db)):
+    """
+    Cancel a processing job
+    
+    Note: Only pending or processing jobs can be cancelled
+    """
+    from jobs_crud import JobsCRUD
+    
+    job = JobsCRUD.get_job(db, job_id)
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found"
+        )
+    
+    if job.status in ['completed', 'failed', 'cancelled']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel job in status: {job.status}"
+        )
+    
+    JobsCRUD.cancel_job(db, job_id)
+    
+    # TODO: Revoke Celery task if it's running
+    # from celery_app import celery_app
+    # celery_app.control.revoke(task_id, terminate=True)
+    
+    return {
+        "success": True,
+        "message": f"Job {job_id} cancelled",
+        "job_id": job_id
+    }
+
+
+@router.post("/documents/{document_id}/reprocess")
+async def reprocess_document(
+    document_id: int,
+    force_ocr: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Reprocess an existing document
+    
+    Args:
+        document_id: ID of document to reprocess
+        force_ocr: If True, force OCR even if document already has OCR applied
+    """
+    from tasks import apply_ocr_task, process_document_task
+    from jobs_crud import JobsCRUD
+    
+    # Get document
+    document = crud.get_document(db, document_id)
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document {document_id} not found"
+        )
+    
+    if force_ocr:
+        # Queue OCR task
+        result = apply_ocr_task.delay(document_id, force=True)
+        
+        return {
+            "success": True,
+            "message": f"OCR reprocessing queued for document {document_id}",
+            "document_id": document_id,
+            "task_id": result.id,
+            "type": "ocr"
+        }
+    else:
+        # Create new processing job for full reprocessing
+        job = JobsCRUD.create_job(
+            db=db,
+            filename=document.original_filename,
+            file_size=document.file_size,
+            user_id=None,  # TODO: Get from auth
+            job_metadata={"reprocess": True, "original_document_id": document_id}
+        )
+        
+        # Queue full processing task
+        result = process_document_task.delay(
+            job.job_id,
+            document.file_path,
+            document.original_filename,
+            None  # user_id
+        )
+        
+        return {
+            "success": True,
+            "message": f"Full reprocessing queued for document {document_id}",
+            "document_id": document_id,
+            "job_id": job.job_id,
+            "task_id": result.id,
+            "type": "full"
+        }
+
+
+@router.get("/jobs")
+async def list_jobs(
+    user_id: Optional[str] = None,
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """
+    List processing jobs with optional filtering
+    """
+    from jobs_crud import JobsCRUD
+    from models import ProcessingJob
+    
+    query = db.query(ProcessingJob)
+    
+    if user_id:
+        query = query.filter(ProcessingJob.user_id == user_id)
+    
+    if status:
+        query = query.filter(ProcessingJob.status == status)
+    
+    query = query.order_by(ProcessingJob.created_at.desc())
+    jobs = query.offset(skip).limit(limit).all()
+    
+    return {
+        "jobs": [job.to_dict() for job in jobs],
+        "total": len(jobs)
+    }
+
+
