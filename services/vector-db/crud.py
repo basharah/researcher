@@ -2,7 +2,6 @@
 CRUD operations for Vector DB Service
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from typing import List, Optional, Dict, Any
 from models import DocumentChunk, SearchQuery
 from schemas import ChunkCreate
@@ -103,52 +102,39 @@ def search_similar_chunks(
     Returns:
         List of (chunk, similarity_score) tuples
     """
-    # Build the query
-    query_str = """
-        SELECT 
-            id, document_id, chunk_index, text, section, page_number, 
-            chunk_type, created_at, updated_at,
-            1 - (embedding <=> :query_embedding::vector) as similarity
-        FROM document_chunks
-        WHERE 1=1
-    """
+    from sqlalchemy.sql import select
     
-    params: Dict[str, Any] = {"query_embedding": str(query_embedding)}
+    # Build base query with cosine distance
+    # Note: <=> is cosine distance, 1 - distance = similarity
+    similarity = (1 - DocumentChunk.embedding.cosine_distance(query_embedding)).label('similarity')
     
+    query = select(
+        DocumentChunk,
+        similarity
+    )
+    
+    # Apply filters
     if document_id is not None:
-        query_str += " AND document_id = :document_id"
-        params["document_id"] = document_id
+        query = query.where(DocumentChunk.document_id == document_id)
     
     if section:
-        query_str += " AND section = :section"
-        params["section"] = section
+        query = query.where(DocumentChunk.section == section)
     
     if chunk_type:
-        query_str += " AND chunk_type = :chunk_type"
-        params["chunk_type"] = chunk_type
+        query = query.where(DocumentChunk.chunk_type == chunk_type)
     
-    query_str += " ORDER BY similarity DESC LIMIT :max_results"
-    params["max_results"] = max_results
+    # Order by similarity and limit
+    query = query.order_by(similarity.desc()).limit(max_results)
     
     # Execute query
-    result = db.execute(text(query_str), params)
+    result = db.execute(query)
     rows = result.fetchall()
     
-    # Convert to DocumentChunk objects with scores
+    # Convert to (DocumentChunk, similarity) tuples
     results = []
     for row in rows:
-        chunk = DocumentChunk(
-            id=row[0],
-            document_id=row[1],
-            chunk_index=row[2],
-            text=row[3],
-            section=row[4],
-            page_number=row[5],
-            chunk_type=row[6],
-            created_at=row[7],
-            updated_at=row[8]
-        )
-        similarity = float(row[9])
+        chunk = row[0]  # DocumentChunk object
+        similarity = float(row[1])  # similarity score
         results.append((chunk, similarity))
     
     return results

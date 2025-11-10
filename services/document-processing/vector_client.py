@@ -62,7 +62,7 @@ class VectorDBClient:
                 
                 logger.info(f"Sending document {document_id} to Vector DB for processing")
                 response = await client.post(
-                    f"{self.base_url}/process-document",
+                    f"{self.base_url}/api/v1/process-document",
                     json=payload
                 )
                 
@@ -125,7 +125,7 @@ class VectorDBClient:
                 }
                 
                 response = await client.post(
-                    f"{self.base_url}/search",
+                    f"{self.base_url}/api/v1/search",
                     json=payload
                 )
                 
@@ -152,7 +152,7 @@ class VectorDBClient:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.delete(
-                    f"{self.base_url}/documents/{document_id}/chunks"
+                    f"{self.base_url}/api/v1/documents/{document_id}/chunks"
                 )
                 
                 response.raise_for_status()

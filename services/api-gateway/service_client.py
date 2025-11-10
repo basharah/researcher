@@ -86,7 +86,7 @@ class ServiceClient:
         try:
             async with httpx.AsyncClient(timeout=self.default_timeout) as client:
                 response = await client.post(
-                    f"{self.document_url}/api/v1/search",
+                    f"{self.vector_url}/api/v1/search",
                     json=search_request
                 )
                 response.raise_for_status()
