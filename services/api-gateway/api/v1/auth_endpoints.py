@@ -2,7 +2,7 @@
 Authentication Endpoints - PostgreSQL Version
 User registration, login, logout, profile management, API keys
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import uuid
@@ -40,7 +40,9 @@ logger = logging.getLogger(__name__)
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(
+    request: Request,
     user_data: UserRegister,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """
@@ -79,30 +81,61 @@ async def register(
     refresh_token = AuthService.create_refresh_token(user.user_id)
     store_refresh_token_db(db, refresh_token, user.user_id)
     
-    logger.info(f"New user registered: {user.email}")
+    logger.info(f"New user registered: {user.email} (from {request.client.host})")
     
     from config import settings
-    
+
+    # Set HttpOnly cookies for access and refresh tokens
+    access_max_age = settings.access_token_expire_minutes * 60
+    refresh_max_age = settings.refresh_token_expire_days * 24 * 3600
+
+    secure = not settings.debug
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=access_max_age,
+        path="/"
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=refresh_max_age,
+        path="/"
+    )
+
     return Token(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
-        expires_in=settings.access_token_expire_minutes * 60  # Convert to seconds
+        expires_in=access_max_age
     )
 
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     credentials: UserLogin,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """
     Login with email and password
     Returns access token and refresh token
     """
+    # Log the login attempt (email only)
+    logger.info(f"Login attempt for: {credentials.email} from {request.client.host} origin={request.headers.get('origin')}")
+
     # Get user
     user = UserCRUD.get_user_by_email(db, credentials.email)
     if not user:
+        logger.info(f"Login failed: user not found for email={credentials.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
@@ -110,6 +143,7 @@ async def login(
     
     # Verify password
     if not AuthService.verify_password(credentials.password, user.password_hash):
+        logger.info(f"Login failed: incorrect password for email={credentials.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
@@ -137,12 +171,38 @@ async def login(
     logger.info(f"User logged in: {user.email}")
     
     from config import settings
-    
+
+    access_max_age = settings.access_token_expire_minutes * 60
+    refresh_max_age = settings.refresh_token_expire_days * 24 * 3600
+    secure = not settings.debug
+
+    logger.info(f"Setting cookies: secure={secure}, debug={settings.debug}, access_max_age={access_max_age}, refresh_max_age={refresh_max_age}")
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=access_max_age,
+        path="/"
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=refresh_max_age,
+        path="/"
+    )
+    logger.info(f"Cookies set successfully for user: {user.email}")
+
     return Token(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
-        expires_in=settings.access_token_expire_minutes * 60  # Convert to seconds
+        expires_in=access_max_age
     )
 
 
@@ -201,22 +261,41 @@ async def refresh_token(
 
 @router.post("/logout")
 async def logout(
-    logout_data: LogoutRequest,
+    request: Request,
+    response: Response,
+    logout_data: LogoutRequest | None = None,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Logout user - invalidates access token and optionally refresh token
     """
-    # Blacklist access token
-    AuthService.blacklist_token(logout_data.access_token)
-    
-    # Revoke refresh token if provided
-    if logout_data.refresh_token:
-        revoke_refresh_token_db(db, logout_data.refresh_token)
+    # Blacklist access token (from body if provided, otherwise try cookie)
+    access_token = None
+    refresh_token = None
+    if logout_data:
+        access_token = getattr(logout_data, "access_token", None)
+        refresh_token = getattr(logout_data, "refresh_token", None)
+
+    if not access_token:
+        access_token = request.cookies.get("access_token")
+
+    if access_token:
+        AuthService.blacklist_token(access_token)
+
+    # Revoke refresh token if provided (body) or from cookie
+    if not refresh_token:
+        refresh_token = request.cookies.get("refresh_token")
+
+    if refresh_token:
+        revoke_refresh_token_db(db, refresh_token)
     
     logger.info(f"User logged out: {current_user['email']}")
-    
+
+    # Delete cookies
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+
     return {"message": "Successfully logged out"}
 
 

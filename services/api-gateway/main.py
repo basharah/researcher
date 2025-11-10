@@ -30,12 +30,14 @@ app = FastAPI(
 )
 
 # CORS middleware - Allow frontend access
+logger.info(f"Configuring CORS with origins: {settings.cors_origins}, allow_credentials: True")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Set-Cookie"],  # Explicitly expose Set-Cookie header
 )
 
 # Include API routes

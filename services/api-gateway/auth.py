@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import redis
 import json
@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# JWT token bearer
-security = HTTPBearer()
+# JWT token bearer - auto_error=False allows it to return None instead of raising
+security = HTTPBearer(auto_error=False)
 
 # Redis client for token blacklist and session management
 redis_client = redis.from_url(settings.redis_url, decode_responses=True)
@@ -190,7 +190,8 @@ class AuthService:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security)
 ) -> Dict[str, Any]:
     """
     Dependency to get current authenticated user from JWT token
@@ -202,8 +203,27 @@ async def get_current_user(
         async def protected_route(user: dict = Depends(get_current_user)):
             return {"user_id": user["user_id"]}
     """
-    token = credentials.credentials
-    
+    token = None
+
+    # Prefer Authorization header if present
+    if credentials:
+        token = credentials.credentials
+        logger.info(f"Token from Authorization header: {token[:20]}...")
+    else:
+        # Fall back to cookie named 'access_token'
+        token = request.cookies.get("access_token")
+        if token:
+            logger.info(f"Token from cookie: {token[:20]}...")
+        else:
+            logger.info(f"No token in Authorization header or cookies. Available cookies: {list(request.cookies.keys())}")
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # Check if token is blacklisted
     if AuthService.is_token_blacklisted(token):
         raise HTTPException(
@@ -211,7 +231,7 @@ async def get_current_user(
             detail="Token has been revoked",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Decode and validate token
     payload = AuthService.decode_token(token)
     
