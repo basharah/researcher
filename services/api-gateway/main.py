@@ -4,8 +4,10 @@ Unified entry point for all microservices
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import logging
 import sys
+from pathlib import Path
 
 from config import settings
 from api import api_router
@@ -42,6 +44,15 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(api_router, prefix=settings.api_prefix)
+
+# Mount static UI
+ui_dir = Path(__file__).parent / "ui"
+if ui_dir.exists():
+    app.mount("/ui", StaticFiles(directory=str(ui_dir), html=True), name="ui")
+    logger.info(f"📱 UI mounted at /ui from {ui_dir}")
+else:
+    logger.warning(f"⚠️  UI directory not found: {ui_dir}")
+
 
 
 @app.on_event("startup")

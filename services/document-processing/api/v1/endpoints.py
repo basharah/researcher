@@ -559,7 +559,8 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)):
                 "message": step.message,
                 "details": step.details,
                 "duration_ms": step.duration_ms,
-                "timestamp": step.timestamp.isoformat() if step.timestamp else None
+                "started_at": step.started_at.isoformat() if step.started_at else None,
+                "completed_at": step.completed_at.isoformat() if step.completed_at else None
             }
             for step in steps
         ]

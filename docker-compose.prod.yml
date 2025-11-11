@@ -106,9 +106,11 @@ services:
       - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=vector-db
-      - CUDA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=-1  # Use CPU only to avoid GPU OOM
+      - HF_HOME=/home/appuser/.cache/huggingface
     volumes:
       - ./services/vector-db:/app:ro  # Read-only
+      - huggingface_cache:/home/appuser/.cache/huggingface  # Writable cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,10 +127,7 @@ services:
         reservations:
           cpus: '1'
           memory: 512M
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+          # GPU disabled - using CPU to avoid OOM crashes
 
   llm-service:
     image: researcher-llm-service:latest
@@ -247,3 +246,4 @@ volumes:
   postgres_data:
   redis_data:
   uploads_data:
+  huggingface_cache:

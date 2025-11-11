@@ -226,7 +226,7 @@
         });
         if (!res.ok) throw new Error(`Search failed: ${res.status}`);
         const data = await res.json();
-        const items = (data.results || []);
+          const items = (data.chunks || []);
         if (!items.length) {
           resultsEl.innerHTML = '<div class="muted">No results</div>';
           return;
