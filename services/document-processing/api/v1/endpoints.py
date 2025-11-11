@@ -54,9 +54,9 @@ async def process_in_vector_db(document_id: int, full_text: str, sections: dict)
 
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
-    file: UploadFile = File(...), 
-    db: Session = Depends(get_db),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
 ):
     """
     Upload a research paper PDF
@@ -139,6 +139,7 @@ async def upload_document(
         
         # Send to Vector DB in background (non-blocking)
         if settings.enable_vector_db:
+            # IMPORTANT: use injected BackgroundTasks (not a manually created instance)
             background_tasks.add_task(
                 process_in_vector_db,
                 document.id,
