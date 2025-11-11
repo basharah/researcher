@@ -72,3 +72,4 @@ redis_data/
 uploads_data/
 
 .venv
+services/vector-db/.cache/

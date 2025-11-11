@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Researcher UI — Upload, Track, Search</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121a2b;
+      --muted: #5f6b85;
+      --text: #e8ecf8;
+      --accent: #4f8cff;
+      --accent-2: #22c55e;
+      --danger: #ef4444;
+    }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; background: var(--bg); color: var(--text); }
+    header { padding: 20px; border-bottom: 1px solid #1e293b; background: #0d1526; position: sticky; top: 0; z-index: 10; }
+    header h1 { margin: 0; font-size: 18px; letter-spacing: 0.3px; }
+    main { max-width: 1000px; margin: 24px auto; padding: 0 16px; display: grid; gap: 16px; }
+    .card { background: var(--panel); border: 1px solid #1e293b; border-radius: 12px; padding: 16px; }
+    .row { display: grid; gap: 12px; }
+    .row-2 { grid-template-columns: 1fr 1fr; }
+    .row-3 { grid-template-columns: 1fr 1fr 1fr; }
+    @media (max-width: 800px) { .row-2, .row-3 { grid-template-columns: 1fr; } }
+    label { font-size: 13px; color: var(--muted); }
+    input[type="file"], input[type="text"], select { width: 100%; padding: 10px 12px; background: #0d1526; color: var(--text); border: 1px solid #243045; border-radius: 10px; outline: none; }
+    input[type="text"]::placeholder { color: #7d89a8; }
+    button { padding: 10px 14px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; color: white; background: var(--accent); }
+    button.secondary { background: #243045; color: var(--text); }
+    button.success { background: var(--accent-2); }
+    button.danger { background: var(--danger); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 12px; }
+    .log { background: #0d1526; border: 1px dashed #243045; padding: 12px; border-radius: 10px; height: 140px; overflow: auto; white-space: pre-wrap; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; background: #0d1526; border: 1px solid #243045; padding: 6px 10px; border-radius: 999px; font-size: 12px; color: var(--muted); }
+    .result { padding: 10px; border: 1px solid #23314a; border-radius: 10px; background: #0c1527; }
+    .score { color: var(--accent-2); font-weight: 600; }
+    .row .half { display: grid; gap: 10px; }
+    .footer { text-align: center; color: var(--muted); padding: 20px; font-size: 12px; }
+    a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Researcher • Upload → Track → Search</h1>
+  </header>
+  <main>
+    <section class="card">
+      <div class="row row-3">
+        <div class="half">
+          <label>PDF File</label>
+          <input id="file" type="file" accept="application/pdf" />
+        </div>
+        <div class="half">
+          <label>&nbsp;</label>
+          <button id="uploadBtn">Upload (Async)</button>
+        </div>
+        <div class="half">
+          <label>Current Document</label>
+          <div class="pill"><span>document_id:</span> <span id="docId">—</span></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top: 8px;">
+        <div class="half">
+          <label>Status</label>
+          <div class="pill"><span id="status">Idle</span></div>
+        </div>
+        <div class="half">
+          <label>Job</label>
+          <div class="pill mono" id="job">—</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top: 8px;">
+        <div class="half">
+          <label>Logs</label>
+          <div id="logs" class="log"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row row-3">
+        <div class="half">
+          <label>Query</label>
+          <input id="query" type="text" placeholder="e.g., methodology transformer accuracy" />
+        </div>
+        <div class="half">
+          <label>Max Results</label>
+          <select id="limit">
+            <option>3</option>
+            <option selected>5</option>
+            <option>10</option>
+          </select>
+        </div>
+        <div class="half">
+          <label>&nbsp;</label>
+          <button id="searchBtn" class="secondary">Search</button>
+        </div>
+      </div>
+      <div id="results" class="row" style="margin-top: 10px;"></div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <div>
+          <div class="muted">Tips</div>
+          <ul>
+            <li>Use the Upload (Async) button and watch status change to processing → completed.</li>
+            <li>Once completed, the document_id is set; use Search to query only that document.</li>
+            <li>If your PDF has no extractable text, chunking may be empty. Try another file.</li>
+            <li>Monitor workers at <a href="http://localhost:5555" target="_blank" rel="noreferrer">Flower</a>.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">Backend: API Gateway on http://localhost:8000/api/v1 • UI static at /ui/</div>
+  </main>
+
+  <script>
+    const api = (path) => `/api/v1${path}`;
+
+    const el = (id) => document.getElementById(id);
+    const log = (msg) => {
+      const t = new Date().toLocaleTimeString();
+      el('logs').textContent += `[${t}] ${msg}\n`;
+      el('logs').scrollTop = el('logs').scrollHeight;
+    };
+
+    let currentJobId = null;
+    let currentDocId = null;
+    let pollTimer = null;
+
+    async function uploadAsync() {
+      const fileInput = el('file');
+      if (!fileInput.files.length) {
+        alert('Choose a PDF file first.');
+        return;
+      }
+      const file = fileInput.files[0];
+
+      el('status').textContent = 'Uploading…';
+      log(`Uploading ${file.name}…`);
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      try {
+        const res = await fetch(api('/upload-async'), { method: 'POST', body: fd });
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+        const data = await res.json();
+        log(`Queued: job_id=${data.job_id}, task_id=${data.task_id}`);
+        el('status').textContent = 'Queued';
+        el('job').textContent = data.job_id;
+        currentJobId = data.job_id;
+        // start polling
+        startPolling();
+      } catch (e) {
+        console.error(e);
+        el('status').textContent = 'Error';
+        log(`Error: ${e.message}`);
+      }
+    }
+
+    async function pollJob() {
+      if (!currentJobId) return;
+      try {
+        const res = await fetch(api(`/jobs/${currentJobId}`));
+        if (!res.ok) {
+          log(`Job status HTTP ${res.status}`);
+          return;
+        }
+        const job = await res.json();
+        el('status').textContent = job.status || 'unknown';
+        if (job.document_id) {
+          currentDocId = job.document_id;
+          el('docId').textContent = currentDocId;
+        }
+        if (job.status === 'completed') {
+          stopPolling();
+          log('Processing completed. You can run Search now.');
+        }
+        if (job.status === 'failed') {
+          stopPolling();
+          log('Processing failed. Check worker logs.');
+        }
+      } catch (e) {
+        log(`Poll error: ${e.message}`);
+      }
+    }
+
+    function startPolling() {
+      stopPolling();
+      el('status').textContent = 'processing';
+      pollTimer = setInterval(pollJob, 2000);
+    }
+    function stopPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    async function search() {
+      const q = el('query').value.trim();
+      const limit = parseInt(el('limit').value, 10) || 5;
+      const resultsEl = el('results');
+      resultsEl.innerHTML = '';
+
+      if (!q) {
+        alert('Enter a query');
+        return;
+      }
+
+      const body = { query: q, max_results: limit };
+      if (currentDocId) body.document_id = currentDocId;
+
+      log(`Searching: ${q} ${currentDocId ? `(document_id=${currentDocId})` : ''}`);
+
+      try {
+        const res = await fetch(api('/search'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+        const data = await res.json();
+        const items = (data.results || []);
+        if (!items.length) {
+          resultsEl.innerHTML = '<div class="muted">No results</div>';
+          return;
+        }
+        items.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'result';
+          div.innerHTML = `
+            <div class="muted">doc ${item.document_id} • section: ${item.section || '—'} • chunk ${item.chunk_index ?? '—'}</div>
+            <div style="margin:6px 0;">${(item.text || '').replace(/</g,'&lt;').slice(0, 400)}…</div>
+            <div class="muted">similarity <span class="score">${(item.similarity_score ?? 0).toFixed(3)}</span></div>
+          `;
+          resultsEl.appendChild(div);
+        });
+      } catch (e) {
+        log(`Search error: ${e.message}`);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      el('uploadBtn').addEventListener('click', uploadAsync);
+      el('searchBtn').addEventListener('click', search);
+    });
+  </script>
+</body>
+</html>

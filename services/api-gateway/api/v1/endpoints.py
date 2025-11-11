@@ -7,7 +7,9 @@ from typing import List, Optional
 import logging
 import time
 from datetime import datetime
+import httpx
 
+from config import settings
 from schemas import (
     SearchRequest, SearchResponse,
     AnalysisRequest, QuestionRequest,
@@ -69,6 +71,67 @@ async def upload_document(file: UploadFile = File(...)):
         raise
     except Exception as e:
         logger.error(f"Error uploading document: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/upload-async", status_code=status.HTTP_202_ACCEPTED)
+async def upload_document_async(file: UploadFile = File(...)):
+    """
+    Upload a research paper PDF with Celery-based async processing
+    
+    This endpoint uses Celery for background processing, making it suitable
+    for production deployments with multiple workers.
+    
+    Returns:
+        - job_id: Track processing status via /jobs/{job_id}
+        - task_id: Celery task ID
+        - status_endpoint: URL to check job status
+    """
+    request_stats["total"] += 1
+    request_stats["document_service"] += 1
+    
+    if not file.filename or not file.filename.endswith('.pdf'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF files are allowed"
+        )
+    
+    try:
+        service_client = get_service_client()
+        contents = await file.read()
+        
+        # Call document service async upload endpoint
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            files = {"file": (file.filename, contents, "application/pdf")}
+            response = await client.post(
+                f"{settings.document_service_url}/api/v1/upload-async",
+                files=files
+            )
+            response.raise_for_status()
+            result = response.json()
+        
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to queue document processing"
+            )
+        
+        logger.info(f"Async upload queued: Job {result.get('job_id')} - {file.filename}")
+        return result
+        
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Document service error: {e.response.text}")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=e.response.text
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error queuing async upload: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)

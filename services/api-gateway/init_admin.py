@@ -25,7 +25,7 @@ def create_default_admin():
     
     try:
         # Default admin credentials
-        admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@researcher.local")
+        admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@bashars.eu")
         admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
         admin_name = os.getenv("DEFAULT_ADMIN_NAME", "System Administrator")
         

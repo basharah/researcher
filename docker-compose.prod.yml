@@ -1,3 +1,7 @@
+# Docker Compose - Production Optimized
+# Use this for better performance and lower resource usage
+# No auto-reload, optimized for production-like environment
+
 services:
   postgres:
     image: ankane/pgvector:latest
@@ -12,11 +16,15 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./services/vector-db/sql/init_pgvector.sql:/docker-entrypoint-initdb.d/init_pgvector.sql:ro
     healthcheck:
-      # Check the configured database rather than relying on default DB name
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -d research_papers -U researcher"]
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
 
   redis:
     image: redis:7-alpine
@@ -30,6 +38,11 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   migrate:
     image: researcher-document-processing-service:latest
@@ -48,8 +61,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # Override the document-processing image entrypoint so this container ONLY runs migrations
-    # and exits. Prevents uvicorn from starting inside the migrate job.
     entrypoint:
       - alembic
       - upgrade
@@ -57,11 +68,8 @@ services:
 
   document-processing:
     image: researcher-document-processing-service:latest
-    build:
-      context: ./services/document-processing
-      dockerfile: Dockerfile
     container_name: document-processing-service
-    user: "1000:1000"  # Run as non-root user
+    user: "1000:1000"
     ports:
       - "8001:8000"
     environment:
@@ -69,7 +77,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=document-processing
     volumes:
-      - ./services/document-processing:/app
+      - ./services/document-processing:/app:ro  # Read-only for better performance
       - uploads_data:/app/uploads
     depends_on:
       postgres:
@@ -78,7 +86,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude '*.pyc' --reload-exclude '__pycache__/*' --reload-exclude '.git/*'
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
     deploy:
       resources:
         limits:
@@ -90,11 +98,8 @@ services:
 
   vector-db:
     image: researcher-vector-db-service:latest
-    build:
-      context: ./services/vector-db
-      dockerfile: Dockerfile
     container_name: vector-db-service
-    user: "1000:1000"  # Run as non-root user
+    user: "1000:1000"
     ports:
       - "8002:8000"
     environment:
@@ -103,7 +108,7 @@ services:
       - SERVICE_NAME=vector-db
       - CUDA_VISIBLE_DEVICES=0
     volumes:
-      - ./services/vector-db:/app
+      - ./services/vector-db:/app:ro  # Read-only
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,11 +116,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude '*.pyc' --reload-exclude '__pycache__/*' --reload-exclude '.git/*'
-    profiles:
-      - phase2
-      - phase3
-      - phase4
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
     deploy:
       resources:
         limits:
@@ -124,18 +125,15 @@ services:
         reservations:
           cpus: '1'
           memory: 512M
-        devices:
-          - driver: nvidia
-            count: 1
-            capabilities: [gpu]
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   llm-service:
     image: researcher-llm-service:latest
-    build:
-      context: ./services/llm-service
-      dockerfile: Dockerfile
     container_name: llm-service
-    user: "1000:1000"  # Run as non-root user
+    user: "1000:1000"
     ports:
       - "8003:8000"
     environment:
@@ -143,16 +141,13 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=llm-service
-      - CUDA_VISIBLE_DEVICES=1  # Use second GPU (GTX 960) for local LLM inference
+      - CUDA_VISIBLE_DEVICES=1
     volumes:
-      - ./services/llm-service:/app
+      - ./services/llm-service:/app:ro  # Read-only
     depends_on:
       redis:
         condition: service_healthy
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude '*.pyc' --reload-exclude '__pycache__/*' --reload-exclude '.git/*' --reload-exclude '*.log'
-    profiles:
-      - phase3
-      - phase4
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
     deploy:
       resources:
         limits:
@@ -166,20 +161,50 @@ services:
               count: 1
               capabilities: [gpu]
 
+  api-gateway:
+    image: researcher-api-gateway-service:latest
+    container_name: api-gateway-service
+    user: "1000:1000"
+    ports:
+      - "8000:8000"
+    environment:
+      - DOCUMENT_SERVICE_URL=http://document-processing:8000
+      - VECTOR_SERVICE_URL=http://vector-db:8000
+      - LLM_SERVICE_URL=http://llm-service:8000
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
+      - SERVICE_NAME=api-gateway
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
+    volumes:
+      - ./services/api-gateway:/app:ro  # Read-only
+    depends_on:
+      - document-processing
+      - vector-db
+      - llm-service
+      - redis
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
   celery-worker:
     image: researcher-document-processing-service:latest
-    build:
-      context: ./services/document-processing
-      dockerfile: Dockerfile
-    container_name: celery-worker
-    user: "1000:1000"  # Run as non-root user
+    container_name: celery-worker-prod
+    user: "1000:1000"
     environment:
       - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
       - REDIS_URL=redis://redis:6379
       - VECTOR_DB_URL=http://vector-db:8000
       - SERVICE_NAME=celery-worker
     volumes:
-      - ./services/document-processing:/app
+      - ./services/document-processing:/app:ro  # Read-only
       - uploads_data:/app/uploads
     depends_on:
       postgres:
@@ -188,10 +213,10 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      vector-db:
+        condition: service_started
     entrypoint: []
     command: celery -A celery_app worker --loglevel=info -Q document_processing,batch_processing,metadata_extraction,ocr_processing --concurrency=2
-    profiles:
-      - phase4
     deploy:
       resources:
         limits:
@@ -203,57 +228,20 @@ services:
 
   flower:
     image: mher/flower:2.0.1
-    container_name: flower-monitor
+    container_name: flower-monitor-prod
     ports:
       - "5555:5555"
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - FLOWER_PORT=5555
     depends_on:
-      redis:
-        condition: service_healthy
-    command: celery --broker=redis://redis:6379/0 flower --port=5555
-    profiles:
-      - phase4
-
-  api-gateway:
-    image: researcher-api-gateway-service:latest
-    build:
-      context: ./services/api-gateway
-      dockerfile: Dockerfile
-    container_name: api-gateway-service
-    user: "1000:1000"  # Run as non-root user
-    ports:
-      - "8000:8000"
-    environment:
-      - DOCUMENT_SERVICE_URL=http://document-processing:8000
-      - VECTOR_SERVICE_URL=http://vector-db:8000
-      - LLM_SERVICE_URL=http://llm-service:8000
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
-      - SERVICE_NAME=api-gateway
-      - ENVIRONMENT=development
-      - DEBUG=true
-      - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
-    volumes:
-      - ./services/api-gateway:/app
-    depends_on:
-      - document-processing
-      - vector-db
-      - llm-service
       - redis
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude '*.pyc' --reload-exclude '__pycache__/*' --reload-exclude '.git/*'
-    profiles:
-      - phase4
+      - celery-worker
     deploy:
       resources:
         limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
+          cpus: '0.5'
+          memory: 256M
 
 volumes:
   postgres_data:

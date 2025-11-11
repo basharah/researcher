@@ -37,17 +37,19 @@ async def process_in_vector_db(document_id: int, full_text: str, sections: dict)
         full_text: Complete document text
         sections: Dictionary of extracted sections
     """
+    logger.info(f"🔄 Background task started for document {document_id}")
     try:
         vector_client = get_vector_client()
+        logger.info(f"📡 Sending document {document_id} to Vector DB...")
         result = await vector_client.process_document(
             document_id=document_id,
             full_text=full_text,
             sections=sections
         )
         if result:
-            logger.info(f"Document {document_id} successfully processed in Vector DB")
+            logger.info(f"✅ Document {document_id} successfully processed in Vector DB")
         else:
-            logger.warning(f"Document {document_id} processing in Vector DB returned None")
+            logger.warning(f"⚠️  Document {document_id} processing in Vector DB returned None")
     except Exception as e:
         logger.error(f"Error processing document {document_id} in Vector DB: {e}")
 
@@ -139,6 +141,7 @@ async def upload_document(
         
         # Send to Vector DB in background (non-blocking)
         if settings.enable_vector_db:
+            logger.info(f"📋 Scheduling Vector DB processing for document {document.id}")
             # IMPORTANT: use injected BackgroundTasks (not a manually created instance)
             background_tasks.add_task(
                 process_in_vector_db,
@@ -146,7 +149,7 @@ async def upload_document(
                 text_content,
                 sections
             )
-            logger.info(f"Scheduled Vector DB processing for document {document.id}")
+            logger.info(f"✅ Scheduled Vector DB processing for document {document.id}")
         
         return DocumentResponse.model_validate(document)
         
@@ -157,6 +160,93 @@ async def upload_document(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing PDF: {str(e)}"
+        )
+
+
+@router.post("/upload-async")
+async def upload_document_async(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a research paper PDF with asynchronous Celery processing
+    
+    This endpoint uses Celery for background processing, making it suitable
+    for production deployments with multiple workers.
+    
+    - **file**: PDF file to upload (max 10MB)
+    
+    Returns a job_id for tracking processing status via /jobs/{job_id}
+    """
+    import uuid
+    from tasks import process_document_task
+    from jobs_crud import JobsCRUD
+    
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF files are allowed"
+        )
+    
+    # Read file content
+    contents = await file.read()
+    file_size = len(contents)
+    
+    # Validate file size
+    if file_size > settings.max_file_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File size exceeds maximum allowed size of {settings.max_file_size / 1024 / 1024}MB"
+        )
+    
+    # Generate unique filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_filename = f"{timestamp}_{file.filename}"
+    file_path = settings.upload_dir / safe_filename
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        
+        # Create processing job
+        job = JobsCRUD.create_job(
+            db=db,
+            filename=file.filename,
+            file_size=file_size,
+            user_id=None,  # TODO: Get from auth context
+            job_metadata={"upload_type": "async", "upload_timestamp": datetime.now().isoformat()}
+        )
+        
+        # Queue Celery task for processing
+        result = process_document_task.delay(
+            job.job_id,
+            str(file_path),
+            file.filename,
+            None  # user_id
+        )
+        
+        logger.info(f"📤 Async upload queued: {file.filename} -> Job {job.job_id}, Task {result.id}")
+        
+        return {
+            "success": True,
+            "message": "Document upload successful, processing queued",
+            "job_id": job.job_id,
+            "task_id": result.id,
+            "filename": file.filename,
+            "status_endpoint": f"/jobs/{job.job_id}"
+        }
+        
+    except Exception as e:
+        # Clean up file on error
+        if file_path.exists():
+            file_path.unlink()
+        
+        logger.error(f"Async upload failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing upload: {str(e)}"
         )
 
 

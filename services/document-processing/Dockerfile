@@ -5,8 +5,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser -u 1000 appuser
+# Create non-root user with home directory
+RUN groupadd -r appuser && useradd -r -g appuser -u 1000 -m -d /home/appuser appuser
 
 WORKDIR /app
 

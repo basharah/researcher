@@ -5,8 +5,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser -u 1000 appuser
+# Create non-root user with home directory
+RUN groupadd -r appuser && useradd -r -g appuser -u 1000 -m -d /home/appuser appuser
 
 WORKDIR /app
 
@@ -46,8 +46,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Set ownership
-RUN chown -R appuser:appuser /app
+# Set Hugging Face cache directory to writable location
+ENV HF_HOME=/app/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/app/.cache/transformers
+
+# Set ownership and create cache directory
+RUN mkdir -p /app/.cache && chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
