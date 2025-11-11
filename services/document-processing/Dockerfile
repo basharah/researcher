@@ -1,9 +1,20 @@
-FROM python:3.11-slim
+# Document Processing Service - Optimized Dockerfile
+FROM python:3.11-slim as base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser -u 1000 appuser
 
 WORKDIR /app
 
-# Install system dependencies for PDF processing and OCR
-RUN apt-get update && apt-get install -y \
+# Builder stage
+FROM base as builder
+
+# Install build dependencies and PDF/OCR tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     poppler-utils \
@@ -11,22 +22,46 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip, setuptools, and wheel
-RUN pip install --no-cache-dir -U pip setuptools wheel
+# Upgrade pip
+RUN pip install --upgrade pip setuptools wheel
 
-# Copy requirements and install Python dependencies
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy and install requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Final stage
+FROM base as final
 
-# Create uploads directory
-RUN mkdir -p /app/uploads
- 
-# Copy and set entrypoint
-COPY entrypoint.sh /entrypoint.sh
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Create necessary directories with correct permissions
+RUN mkdir -p /app/uploads && chown -R appuser:appuser /app
+
+# Copy entrypoint script
+COPY --chown=appuser:appuser entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Switch to non-root user
+USER appuser
+
+WORKDIR /app
+
+# Copy application code (will be overridden by volume in dev)
+COPY --chown=appuser:appuser . .
 
 EXPOSE 8000
 

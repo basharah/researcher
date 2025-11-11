@@ -19,8 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    pass
+    # Rename metadata column to job_metadata in processing_jobs table
+    op.alter_column('processing_jobs', 'metadata', new_column_name='job_metadata')
 
 
 def downgrade() -> None:
-    pass
+    # Rename job_metadata back to metadata
+    op.alter_column('processing_jobs', 'job_metadata', new_column_name='metadata')

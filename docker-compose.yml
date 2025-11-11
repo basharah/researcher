@@ -61,6 +61,7 @@ services:
       context: ./services/document-processing
       dockerfile: Dockerfile
     container_name: document-processing-service
+    user: "1000:1000"  # Run as non-root user
     ports:
       - "8001:8000"
     environment:
@@ -85,6 +86,7 @@ services:
       context: ./services/vector-db
       dockerfile: Dockerfile
     container_name: vector-db-service
+    user: "1000:1000"  # Run as non-root user
     ports:
       - "8002:8000"
     environment:
@@ -120,6 +122,7 @@ services:
       context: ./services/llm-service
       dockerfile: Dockerfile
     container_name: llm-service
+    user: "1000:1000"  # Run as non-root user
     ports:
       - "8003:8000"
     environment:
@@ -151,6 +154,7 @@ services:
       context: ./services/document-processing
       dockerfile: Dockerfile
     container_name: celery-worker
+    user: "1000:1000"  # Run as non-root user
     environment:
       - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
       - REDIS_URL=redis://redis:6379
@@ -193,6 +197,7 @@ services:
       context: ./services/api-gateway
       dockerfile: Dockerfile
     container_name: api-gateway-service
+    user: "1000:1000"  # Run as non-root user
     ports:
       - "8000:8000"
     environment:
@@ -200,6 +205,7 @@ services:
       - VECTOR_SERVICE_URL=http://vector-db:8000
       - LLM_SERVICE_URL=http://llm-service:8000
       - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://researcher:researcher_pass@postgres:5432/research_papers
       - SERVICE_NAME=api-gateway
       - ENVIRONMENT=development
       - DEBUG=true
