@@ -113,6 +113,38 @@ export default function DashboardPage() {
           </p>
         </Link>
 
+        {/* Compare Papers */}
+        <Link
+          href="/compare"
+          className="block p-6 border rounded-lg hover:border-teal-500 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center mb-3">
+            <svg className="w-8 h-8 text-teal-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 8l2 2 4-4" />
+            </svg>
+            <h2 className="text-xl font-semibold">Compare Papers</h2>
+          </div>
+          <p className="text-sm text-zinc-600">
+            Side-by-side AI comparison of multiple documents
+          </p>
+        </Link>
+
+        {/* Interactive Chat */}
+        <Link
+          href="/chat"
+          className="block p-6 border rounded-lg hover:border-indigo-500 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center mb-3">
+            <svg className="w-8 h-8 text-indigo-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <h2 className="text-xl font-semibold">Interactive Chat</h2>
+          </div>
+          <p className="text-sm text-zinc-600">
+            Q&A conversation with AI about your papers
+          </p>
+        </Link>
+
         {/* Profile */}
         <Link
           href="/profile"
