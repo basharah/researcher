@@ -398,6 +398,66 @@ Once you've completed all phases:
 4. **Scale Services**: Kubernetes
 5. **Add More Features**:
    - Citation network visualization
+
+## 🚢 Production Deployment (Docker)
+
+This repository ships with a production-optimized Docker Compose setup and helper scripts to build and run all services, including the Next.js frontend.
+
+- Compose file: `docker-compose.prod.yml`
+- Build script: `./build-images.sh`
+- Start script: `./start-prod.sh`
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Optional: NVIDIA drivers + NVIDIA Container Toolkit if you plan to enable GPUs later
+- Optional: LLM provider keys in your shell (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
+
+### One-liner start (uses existing images)
+
+```bash
+./start-prod.sh
+```
+
+### Build and start everything
+
+```bash
+# Build all images (base + services + frontend)
+./build-images.sh
+
+# Or build + start in one step
+./start-prod.sh --build
+```
+
+### Frontend API base (public URL)
+
+The browser uses `NEXT_PUBLIC_API_BASE` for API calls. When deploying behind a domain, embed your public API Gateway URL at build time:
+
+```bash
+./build-images.sh --api-base https://your-domain/api/v1
+./start-prod.sh
+```
+
+For local use, the default points to `http://localhost:8000/api/v1`.
+
+### Access
+
+- Frontend: `http://localhost:3000`
+- API Gateway Health: `http://localhost:8000/api/v1/health`
+- Flower (Celery): `http://localhost:5555`
+
+### Logs and stop
+
+```bash
+docker compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml down
+```
+
+### Notes
+
+- CORS origins in API Gateway include `http://localhost:3000`. Add your domain to `CORS_ORIGINS` in `docker-compose.prod.yml` for production.
+- Vector DB is configured CPU-only by default for stability. See `docs/GPU_SETUP.md` if you want to enable GPUs.
+- The frontend image bakes the public API base for client requests; server-side rendering also reads it from env at runtime.
    - Automated systematic reviews
    - Research trend analysis
    - Collaborative features

@@ -193,6 +193,29 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into the build for client-side code
+        NEXT_PUBLIC_API_BASE: http://localhost:8000/api/v1
+    image: researcher-frontend:latest
+    container_name: researcher-frontend
+    environment:
+      # For server-side code (SSR/data fetching), kept for completeness
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
   celery-worker:
     image: researcher-document-processing-service:latest
     container_name: celery-worker-prod

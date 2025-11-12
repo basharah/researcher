@@ -9,6 +9,7 @@ set -euo pipefail
 #   -r, --registry [R]   Registry prefix (e.g., ghcr.io/owner/). Default is none
 #   --platform [PLAT]    Target platform (e.g., linux/amd64). Default docker default
 #   -f, --file [FILE]    Compose file to use (default docker-compose.prod.yml)
+#   --api-base [URL]     Frontend API base to embed at build (NEXT_PUBLIC_API_BASE)
 #   -h, --help           Show help
 
 TAG="latest"
@@ -17,6 +18,7 @@ NO_CACHE=false
 REGISTRY=""
 PLATFORM=""
 COMPOSE_FILE="docker-compose.prod.yml"
+API_BASE=""
 
 usage() {
   cat <<EOF
@@ -31,6 +33,7 @@ Options:
   -r, --registry REG      Registry prefix (e.g. ghcr.io/you/)
   --platform PLAT         Build for platform (e.g. linux/amd64)
   -f, --file FILE         Compose file (default: docker-compose.prod.yml)
+  --api-base URL          NEXT_PUBLIC_API_BASE to embed in frontend build
   -h, --help              Show this help message
 
 Examples:
@@ -48,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     -r|--registry) REGISTRY="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; shift 2 ;;
     -f|--file) COMPOSE_FILE="$2"; shift 2 ;;
+    --api-base) API_BASE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
@@ -62,6 +66,7 @@ services=(
   "vector-db:services/vector-db researcher-vector-db-service"
   "llm-service:services/llm-service researcher-llm-service"
   "api-gateway:services/api-gateway researcher-api-gateway-service"
+  "frontend:frontend researcher-frontend"
 )
 
 build_arg_platform=()
@@ -89,7 +94,16 @@ for entry in "${services[@]}"; do
   full_image="${REGISTRY}${img}:${TAG}"
 
   echo "\n==> Building $svc ($full_image) from $ctx"
+  # Extra build args for specific services
+  extra_args=()
+  if [[ "$svc" == "frontend" ]]; then
+    if [[ -n "$API_BASE" ]]; then
+      extra_args+=("--build-arg" "NEXT_PUBLIC_API_BASE=$API_BASE")
+    fi
+  fi
+
   docker build "${build_arg_platform[@]}" "${no_cache_flag[@]}" \
+    "${extra_args[@]}" \
     -t "$full_image" \
     "$ctx"
 

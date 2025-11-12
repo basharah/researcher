@@ -5,6 +5,9 @@ import Header from "../components/Header";
 import ToastProvider from "../components/ToastProvider";
 import { AuthProvider } from "../components/AuthProvider";
 
+// Disable static prerendering to avoid build-time SSR issues
+export const dynamic = "force-dynamic";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
