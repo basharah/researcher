@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { apiFetch } from "@/lib/api";
 
 interface SearchResult {
   chunk_id: number;
@@ -50,14 +51,8 @@ export default function SearchPage() {
 
   const fetchDocuments = async () => {
     try {
-      const response = await fetch("/api/v1/documents?limit=100", {
-        credentials: "include",
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data.documents || []);
-      }
+      const data = await apiFetch("/documents?limit=100");
+      setDocuments(data?.documents || []);
     } catch (err) {
       console.error("Failed to fetch documents:", err);
     }
@@ -88,22 +83,12 @@ export default function SearchPage() {
         requestBody.section = sectionFilter;
       }
 
-      const response = await fetch("/api/v1/search", {
+      const data: SearchResponse = await apiFetch("/search", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Search failed");
-      }
-
-      const data: SearchResponse = await response.json();
-      setResults(data);
+      setResults(data as SearchResponse);
     } catch (err: any) {
       console.error("Search error:", err);
       setError(err.message || "Failed to perform search");

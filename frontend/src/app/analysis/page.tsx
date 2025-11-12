@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { apiFetch } from "@/lib/api";
 
 interface Document {
   id: number;
@@ -12,10 +13,14 @@ interface Document {
 }
 
 interface AnalysisResult {
+  document_id?: number;
   analysis_type: string;
-  analysis: string;
+  result: string;
   model_used?: string;
+  provider_used?: string;
+  tokens_used?: number;
   processing_time_ms?: number;
+  sources_used?: any[];
 }
 
 export default function AnalysisPage() {
@@ -48,16 +53,8 @@ export default function AnalysisPage() {
   const fetchDocuments = async () => {
     setLoadingDocs(true);
     try {
-      const response = await fetch("/api/v1/documents?limit=100", {
-        credentials: "include",
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data.documents || []);
-      } else {
-        setError("Failed to load documents");
-      }
+      const data = await apiFetch("/documents?limit=100");
+      setDocuments(data?.documents || []);
     } catch (err) {
       console.error("Failed to fetch documents:", err);
       setError("Failed to load documents");
@@ -95,22 +92,12 @@ export default function AnalysisPage() {
         requestBody.custom_prompt = customPrompt.trim();
       }
 
-      const response = await fetch("/api/v1/analyze", {
+      const data: AnalysisResult = await apiFetch("/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Analysis failed");
-      }
-
-      const data: AnalysisResult = await response.json();
-      setResult(data);
+      setResult(data as AnalysisResult);
     } catch (err: any) {
       console.error("Analysis error:", err);
       setError(err.message || "Failed to perform analysis");
@@ -130,9 +117,10 @@ export default function AnalysisPage() {
     { value: "custom", label: "Custom Analysis", description: "Your own analysis prompt" },
   ];
 
-  const formatAnalysisText = (text: string) => {
+  const formatAnalysisText = (text?: string) => {
     // Simple markdown-like formatting
-    return text.split('\n').map((line, i) => {
+    const safe = typeof text === "string" ? text : "";
+    return safe.split('\n').map((line, i) => {
       // Headers (lines starting with #)
       if (line.startsWith('###')) {
         return <h4 key={i} className="text-md font-semibold mt-4 mb-2 text-gray-800">{line.replace('###', '').trim()}</h4>;
@@ -344,14 +332,14 @@ export default function AnalysisPage() {
 
                 {/* Analysis Content */}
                 <div className="prose max-w-none">
-                  {formatAnalysisText(result.analysis)}
+                  {formatAnalysisText(result.result)}
                 </div>
 
                 {/* Actions */}
                 <div className="mt-6 pt-4 border-t border-gray-200 flex gap-3">
                   <button
                     onClick={() => {
-                      const blob = new Blob([result.analysis], { type: 'text/plain' });
+                      const blob = new Blob([result.result || ""], { type: 'text/plain' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
@@ -363,7 +351,7 @@ export default function AnalysisPage() {
                     Download as Text
                   </button>
                   <button
-                    onClick={() => navigator.clipboard.writeText(result.analysis)}
+                    onClick={() => navigator.clipboard.writeText(result.result || "")}
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium text-sm"
                   >
                     Copy to Clipboard

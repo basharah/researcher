@@ -304,8 +304,10 @@ async def get_document_sections(document_id: int, db: Session = Depends(get_db))
             "methodology": document.methodology,
             "results": document.results,
             "conclusion": document.conclusion,
-            "references": document.references
-        }
+            "references": document.references,
+        },
+        "full_text": document.full_text,
+        "has_full_text": bool(document.full_text and len(document.full_text) > 200)
     }
 
 

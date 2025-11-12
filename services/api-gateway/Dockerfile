@@ -1,17 +1,9 @@
+# syntax=docker/dockerfile:1.7
 # API Gateway Service - Optimized Dockerfile
-FROM python:3.11-slim as base
-
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
-
-# Create non-root user with home directory
-RUN groupadd -r appuser && useradd -r -g appuser -u 1000 -m -d /home/appuser appuser
-
-WORKDIR /app
+FROM researcher-base:3.11-slim AS base
 
 # Builder stage
-FROM base as builder
+FROM base AS builder
 
 # Install build dependencies (if needed for some packages)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -30,7 +22,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Final stage
-FROM base as final
+FROM base AS final
 
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv

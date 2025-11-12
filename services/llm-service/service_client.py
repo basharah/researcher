@@ -3,7 +3,7 @@ Service Client - Communicates with other microservices
 """
 import httpx  # type: ignore
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -87,6 +87,28 @@ class ServiceClient:
                     
         except Exception as e:
             logger.error(f"Error performing semantic search: {e}")
+            return None
+
+    async def get_document_sections(self, document_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get structured sections for a document from the Document Processing Service
+        """
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    f"{self.document_url}/api/v1/documents/{document_id}/sections"
+                )
+
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.warning(
+                        f"Sections for document {document_id} not available: {response.status_code}"
+                    )
+                    return None
+
+        except Exception as e:
+            logger.error(f"Error fetching sections for document {document_id}: {e}")
             return None
     
     async def health_check_vector_db(self) -> bool:

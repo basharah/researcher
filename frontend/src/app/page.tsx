@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 export default function Home() {
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -13,13 +14,8 @@ export default function Home() {
     setStatus("loading");
     setPayload(null);
     try {
-      const res = await fetch(`${base}/health`, { cache: "no-store" });
-      const data = await res.json();
-      if (res.ok) {
-        setStatus("ok");
-      } else {
-        setStatus("error");
-      }
+      const data = await apiFetch("/health", { cache: "no-store" });
+      setStatus("ok");
       setPayload(data);
     } catch (err) {
       setStatus("error");

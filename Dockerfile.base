@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1.7
+
+# Shared base image for all Python services
+FROM python:3.11-slim
+
+LABEL org.opencontainers.image.title="researcher-base" \
+      org.opencontainers.image.description="Common base for Researcher microservices (Python 3.11 slim)" \
+      org.opencontainers.image.source="https://example.invalid/researcher" \
+      org.opencontainers.image.licenses="MIT"
+
+# Common environment
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Create non-root user with home directory
+RUN groupadd -r appuser && useradd -r -g appuser -u 1000 -m -d /home/appuser appuser
+
+# Upgrade pip toolchain (common across services)
+RUN pip install --upgrade pip setuptools wheel
+
+# Default workdir
+WORKDIR /app
+
+# Keep the base minimal; service-specific apt packages belong in each service Dockerfile

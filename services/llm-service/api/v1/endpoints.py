@@ -2,7 +2,7 @@
 API v1 - LLM Service Endpoints
 """
 from fastapi import APIRouter, HTTPException, status
-from typing import List, Dict, Any
+from typing import Optional
 import logging
 import time
 
@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 
 async def get_document_context(
     document_id: int,
-    section: str = None,
+    section: Optional[str] = None,
     use_rag: bool = True,
-    rag_query: str = None
+    rag_query: Optional[str] = None,
+    analysis_type: Optional[AnalysisType] = None,
 ) -> str:
     """
     Get document context, optionally using RAG
@@ -40,32 +41,69 @@ async def get_document_context(
         Document text context
     """
     service_client = get_service_client()
-    
-    # Get full document
-    doc = await service_client.get_document(document_id)
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Document {document_id} not found"
-        )
-    
-    # If using RAG, get relevant chunks
-    if use_rag and rag_query:
+
+    # Try RAG for non-summary analyses first
+    if use_rag and rag_query and analysis_type not in (AnalysisType.SUMMARY,):
         search_results = await service_client.semantic_search(
             query=rag_query,
             max_results=5,
             document_id=document_id,
-            section=section
+            section=section,
         )
-        
         if search_results and search_results.get("chunks"):
-            return "\n\n".join([chunk["text"] for chunk in search_results["chunks"]])
-    
-    # Otherwise, get section or full text
+            context = "\n\n".join([chunk.get("text", "") for chunk in search_results["chunks"]])
+            logger.info(f"LLM context source=rag len={len(context)}")
+            return context
+
+    # Fetch sections to build a rich context
+    sections_payload = await service_client.get_document_sections(document_id)
+    if sections_payload and isinstance(sections_payload, dict):
+        sections_dict = sections_payload.get("sections") or {}
+        full_text_value = sections_payload.get("full_text") or ""
+        if section and section in sections_dict:
+            ctx = sections_dict.get(section) or ""
+            logger.info(f"LLM context source=section:{section} len={len(ctx)}")
+            return ctx
+        # Build full context in logical order
+        ordered_keys = [
+            "abstract",
+            "introduction",
+            "methodology",
+            "results",
+            "conclusion",
+        ]
+        context_parts = []
+        # Optionally include title if present
+        title = sections_payload.get("title")
+        if title:
+            context_parts.append(f"Title: {title}")
+        for key in ordered_keys:
+            val = sections_dict.get(key)
+            if val:
+                context_parts.append(f"{key.title()}:\n{val}")
+        if context_parts:
+            ctx = "\n\n".join(context_parts)
+            logger.info(f"LLM context source=sections_aggregate len={len(ctx)}")
+            return ctx
+        # If no structured sections, fall back to full_text if present
+        if full_text_value:
+            logger.info(f"LLM context source=full_text len={len(full_text_value)}")
+            return full_text_value
+
+    # As a last resort, fall back to document basic info (may be minimal)
+    doc = await service_client.get_document(document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document {document_id} not found",
+        )
     if section and section in doc:
-        return doc[section] or ""
-    
-    return doc.get("full_text", "")
+        ctx = doc.get(section) or ""
+        logger.info(f"LLM context source=doc_field:{section} len={len(ctx)}")
+        return ctx
+    ctx = doc.get("abstract", "") or ""
+    logger.info(f"LLM context source=abstract len={len(ctx)}")
+    return ctx
 
 
 @router.post("/analyze", response_model=AnalysisResponse)
@@ -112,7 +150,8 @@ async def analyze_document(request: AnalysisRequest):
         context = await get_document_context(
             document_id=request.document_id,
             use_rag=request.use_rag,
-            rag_query=rag_query
+            rag_query=rag_query,
+            analysis_type=request.analysis_type,
         )
         
         # Build prompt
@@ -285,7 +324,7 @@ async def compare_documents(request: CompareDocumentsRequest):
         # Build comparison prompt
         user_prompt = prompt_templates.get_comparison_prompt(
             documents_data,
-            request.comparison_aspects
+            request.comparison_aspects or []
         )
         
         messages = [

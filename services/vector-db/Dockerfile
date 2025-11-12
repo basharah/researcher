@@ -1,17 +1,9 @@
+# syntax=docker/dockerfile:1.7
 # Vector DB Service - Optimized Dockerfile with CUDA support
-FROM python:3.11-slim as base
-
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
-
-# Create non-root user with home directory
-RUN groupadd -r appuser && useradd -r -g appuser -u 1000 -m -d /home/appuser appuser
-
-WORKDIR /app
+FROM researcher-base:3.11-slim AS base
 
 # Builder stage
-FROM base as builder
+FROM base AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -35,7 +27,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Final stage
-FROM base as final
+FROM base AS final
 
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y --no-install-recommends \
