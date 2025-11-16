@@ -124,10 +124,6 @@ services:
         reservations:
           cpus: '1'
           memory: 512M
-        devices:
-          - driver: nvidia
-            count: 1
-            capabilities: [gpu]
 
   llm-service:
     image: researcher-llm-service:latest
@@ -161,10 +157,6 @@ services:
         reservations:
           cpus: '0.25'
           memory: 128M
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   celery-worker:
     image: researcher-document-processing-service:latest
@@ -236,6 +228,9 @@ services:
       - ENVIRONMENT=development
       - DEBUG=true
       - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@bashars.eu}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-admin123}
+      - DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME:-System Administrator}
     volumes:
       - ./services/api-gateway:/app
     depends_on:

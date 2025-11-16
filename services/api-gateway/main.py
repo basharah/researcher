@@ -62,6 +62,14 @@ async def startup_event():
     logger.info("Initializing database tables...")
     init_db()
     
+    # Create default admin user
+    try:
+        from init_admin import create_default_admin
+        logger.info("Checking for default admin user...")
+        create_default_admin()
+    except Exception as e:
+        logger.warning(f"Could not create default admin user: {e}")
+    
     logger.info("=" * 60)
     logger.info("API Gateway Service Starting")
     logger.info("=" * 60)

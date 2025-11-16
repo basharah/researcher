@@ -3,6 +3,8 @@ import pdfplumber
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import statistics
+import re
+from urllib.parse import unquote
 
 
 class PDFParser:
@@ -47,21 +49,82 @@ class PDFParser:
         except Exception as e:
             print(f"Error extracting basic metadata: {e}")
 
-        # If title/authors missing, attempt layout-based extraction from first page
+        # Attempt layout-based extraction from first page as a potentially better source for title/authors
+        layout_title: Optional[str] = None
+        layout_authors: List[str] = []
         try:
             with pdfplumber.open(self.pdf_path) as pdf:
                 if len(pdf.pages) > 0:
                     first_page = pdf.pages[0]
                     title, authors = self._extract_title_and_authors_from_page(first_page)
-                    if not metadata['title'] and title:
-                        metadata['title'] = title
-                    if not metadata['authors'] and authors:
-                        metadata['authors'] = authors
+                    layout_title = title
+                    layout_authors = authors or []
 
         except Exception as e:
             print(f"Error doing layout-based metadata extraction: {e}")
 
+        # Sanitize and choose the best title
+        meta_title_raw = metadata.get('title')
+        meta_title = self._sanitize_title(meta_title_raw) if isinstance(meta_title_raw, str) else None
+        layout_title_sanitized = self._sanitize_title(layout_title) if isinstance(layout_title, str) else None
+
+        chosen_title = None
+        if layout_title_sanitized and meta_title:
+            # Prefer layout title if metadata looks encoded/systematic, or layout looks more plausible/longer
+            if (self._looks_url_encoded_or_systematic(meta_title)
+                or (self._is_plausible_title(layout_title_sanitized) and len(layout_title_sanitized) > len(meta_title))):
+                chosen_title = layout_title_sanitized
+            else:
+                chosen_title = meta_title
+        else:
+            chosen_title = layout_title_sanitized or meta_title
+
+        metadata['title'] = chosen_title
+
+        # If authors missing, use layout authors
+        if not metadata['authors'] and layout_authors:
+            metadata['authors'] = layout_authors
+
         return metadata
+
+    def _sanitize_title(self, s: Optional[str]) -> Optional[str]:
+        if not s:
+            return None
+        try:
+            t = unquote(str(s))
+        except Exception:
+            t = str(s)
+        # Normalize whitespace and convert underscores to spaces
+        t = t.replace('\n', ' ').replace('\r', ' ').strip()
+        if '_' in t:
+            t = t.replace('_', ' ')
+        t = re.sub(r"\s+", " ", t).strip()
+        # Trim surrounding quotes/brackets commonly seen in metadata
+        t = t.strip('"\'[](){} ')
+        return t or None
+
+    def _looks_url_encoded_or_systematic(self, s: str) -> bool:
+        # Detect percent-encoding or many underscores
+        if re.search(r"%[0-9a-fA-F]{2}", s):
+            return True
+        if s.count('_') >= 3:
+            return True
+        # If very short without spaces or mostly non-alpha characters
+        if (' ' not in s) and len(s) > 20:
+            alpha = sum(ch.isalpha() for ch in s)
+            if alpha < len(s) * 0.5:
+                return True
+        return False
+
+    def _is_plausible_title(self, s: str) -> bool:
+        # Heuristics: at least 3 words, mostly alphabetic, reasonable length
+        words = s.split()
+        if len(words) < 3:
+            return False
+        if len(s) < 10 or len(s) > 300:
+            return False
+        alpha = sum(ch.isalpha() for ch in s)
+        return alpha >= len(s) * 0.5
 
     def extract_text(self) -> str:
         """Extract all text from PDF, attempting to preserve column reading order."""

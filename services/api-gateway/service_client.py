@@ -130,7 +130,7 @@ class ServiceClient:
         try:
             async with httpx.AsyncClient(timeout=self.default_timeout) as client:
                 response = await client.get(
-                    f"{self.vector_url}/documents/{document_id}/chunks"
+                    f"{self.vector_url}/api/v1/documents/{document_id}/chunks"
                 )
                 if response.status_code == 200:
                     return response.json()

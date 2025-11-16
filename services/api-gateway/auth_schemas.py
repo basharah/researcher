@@ -79,6 +79,34 @@ class PasswordChange(BaseModel):
         return v
 
 
+class AdminUserCreate(BaseModel):
+    """Admin create user request"""
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=100)
+    full_name: str = Field(..., min_length=1, max_length=100)
+    organization: Optional[str] = Field(None, max_length=100)
+    role: Optional[str] = Field("user", description="User role: user or admin")
+    disabled: Optional[bool] = False
+    
+    @validator('password')
+    def password_strength(cls, v):
+        if not any(c.isupper() for c in v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not any(c.islower() for c in v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('Password must contain at least one digit')
+        return v
+
+
+class AdminUserUpdate(BaseModel):
+    """Admin update user request"""
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    organization: Optional[str] = Field(None, max_length=100)
+    role: Optional[str] = Field(None, description="User role: user or admin")
+    disabled: Optional[bool] = None
+
+
 class APIKeyCreate(BaseModel):
     """API key creation request"""
     name: str = Field(..., min_length=1, max_length=100, description="Name to identify this API key")

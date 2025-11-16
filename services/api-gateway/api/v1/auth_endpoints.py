@@ -24,7 +24,9 @@ from auth_schemas import (
     PasswordChange,
     APIKeyCreate,
     APIKeyResponse,
-    LogoutRequest
+    LogoutRequest,
+    AdminUserCreate,
+    AdminUserUpdate,
 )
 from database import get_db
 from crud import UserCRUD, APIKeyCRUD
@@ -74,7 +76,7 @@ async def register(
     
     # Create tokens
     access_token = AuthService.create_access_token(
-        data={"sub": user.user_id, "email": user.email}
+        data={"sub": user.user_id, "email": user.email, "role": user.role.value if hasattr(user.role, 'value') else str(user.role)}
     )
     
     # Create and store refresh token
@@ -161,7 +163,7 @@ async def login(
     
     # Create tokens
     access_token = AuthService.create_access_token(
-        data={"sub": user.user_id, "email": user.email}
+        data={"sub": user.user_id, "email": user.email, "role": user.role.value if hasattr(user.role, 'value') else str(user.role)}
     )
     
     # Create and store refresh token
@@ -246,7 +248,7 @@ async def refresh_token(
     
     # Create new access token
     access_token = AuthService.create_access_token(
-        data={"sub": user.user_id, "email": user.email}
+        data={"sub": user.user_id, "email": user.email, "role": user.role.value if hasattr(user.role, 'value') else str(user.role)}
     )
     
     from config import settings
@@ -510,13 +512,88 @@ async def list_all_users(
                 "user_id": user.user_id,
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role,
+                "role": getattr(user.role, "value", user.role),
                 "disabled": user.disabled,
                 "created_at": user.created_at
             }
             for user in users
         ]
     }
+
+
+@router.post("/admin/users", response_model=UserResponse)
+async def admin_create_user(
+    new_user: AdminUserCreate,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new user (admin only)
+    """
+    # Hash password
+    password_hash = AuthService.hash_password(new_user.password)
+
+    # Create base user as normal
+    db_user = UserCRUD.create_user(
+        db=db,
+        user_data=UserRegister(
+            email=new_user.email,
+            password=new_user.password,
+            full_name=new_user.full_name,
+            organization=new_user.organization,
+        ),
+        password_hash=password_hash,
+    )
+
+    # Apply admin-provided role/disabled if specified
+    from models import UserRole
+    role_value = (new_user.role or "user").lower()
+    try:
+        role_enum = UserRole(role_value)
+    except Exception:
+        role_enum = UserRole.USER
+
+    updated = UserCRUD.update_user(
+        db=db,
+        user_id=db_user.user_id,
+        role=role_enum,
+        disabled=bool(new_user.disabled),
+    )
+
+    return UserResponse(**updated.to_dict())
+
+
+@router.put("/admin/users/{user_id}", response_model=UserResponse)
+async def admin_update_user(
+    user_id: str,
+    updates: AdminUserUpdate,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Update an existing user (admin only)
+    """
+    from models import UserRole
+
+    update_fields = {
+        "full_name": updates.full_name,
+        "organization": updates.organization,
+    }
+
+    if updates.role is not None:
+        try:
+            update_fields["role"] = UserRole(updates.role)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid role. Use 'user' or 'admin'.")
+
+    if updates.disabled is not None:
+        update_fields["disabled"] = bool(updates.disabled)
+
+    user = UserCRUD.update_user(db, user_id, **update_fields)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return UserResponse(**user.to_dict())
 
 
 @router.put("/admin/users/{user_id}/disable")

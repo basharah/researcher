@@ -1,20 +1,59 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "../../components/AuthProvider";
+import api from "../../lib/api";
+
+interface Stats {
+  total_documents: number;
+  total_chunks: number;
+  recent_documents: Array<{
+    id: number;
+    title: string;
+    upload_date: string;
+    page_count: number;
+  }>;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
   const { authed, loading } = useAuth();
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
     if (!loading && !authed) {
-      // Not authenticated - redirect to login
       router.replace("/login");
     }
   }, [authed, loading, router]);
+
+  useEffect(() => {
+    if (authed) {
+      // Fetch dashboard statistics
+      Promise.all([
+        api.apiFetch("/documents").catch(() => ({ documents: [] })),
+        api.apiFetch("/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: "", max_results: 1 }),
+        }).catch(() => ({ results_count: 0 })),
+      ])
+        .then(([docsResponse, searchResponse]) => {
+          const documents = docsResponse.documents || [];
+          setStats({
+            total_documents: documents.length,
+            total_chunks: searchResponse.results_count || 0,
+            recent_documents: documents
+              .sort((a: any, b: any) => 
+                new Date(b.upload_date).getTime() - new Date(a.upload_date).getTime()
+              )
+              .slice(0, 5),
+          });
+        })
+        .finally(() => setLoadingStats(false));
+    }
+  }, [authed]);
 
   if (loading) {
     return (
@@ -26,172 +65,155 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
-      <h1 className="text-3xl font-bold mb-2">Research Paper Analysis</h1>
+      <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
       <p className="text-zinc-600 mb-8">
-        Upload, analyze, and search through your research papers
+        Overview of your research paper collection
       </p>
 
-      {/* Quick Actions Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-        {/* Single Upload */}
-        <Link
-          href="/upload"
-          className="block p-6 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all"
-        >
-          <div className="flex items-center mb-3">
-            <svg className="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            <h2 className="text-xl font-semibold">Upload Paper</h2>
-          </div>
-          <p className="text-sm text-zinc-600">
-            Upload a single PDF research paper for analysis
-          </p>
-        </Link>
-
-        {/* Batch Upload */}
-        <Link
-          href="/batch-upload"
-          className="block p-6 border rounded-lg hover:border-green-500 hover:shadow-md transition-all"
-        >
-          <div className="flex items-center mb-3">
-            <svg className="w-8 h-8 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="p-6 border rounded-lg bg-gradient-to-br from-blue-50 to-white">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-zinc-600">Total Papers</h3>
+            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <h2 className="text-xl font-semibold">Batch Upload</h2>
           </div>
-          <p className="text-sm text-zinc-600">
-            Upload multiple papers at once with progress tracking
-          </p>
-        </Link>
+          {loadingStats ? (
+            <p className="text-2xl font-bold text-zinc-400">...</p>
+          ) : (
+            <p className="text-3xl font-bold text-blue-600">{stats?.total_documents || 0}</p>
+          )}
+        </div>
 
-        {/* Processing Jobs */}
-        <Link
-          href="/jobs"
-          className="block p-6 border rounded-lg hover:border-purple-500 hover:shadow-md transition-all"
-        >
-          <div className="flex items-center mb-3">
-            <svg className="w-8 h-8 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        <div className="p-6 border rounded-lg bg-gradient-to-br from-green-50 to-white">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-zinc-600">Total Pages</h3>
+            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
-            <h2 className="text-xl font-semibold">Processing Jobs</h2>
           </div>
-          <p className="text-sm text-zinc-600">
-            Monitor document processing status and history
-          </p>
-        </Link>
+          {loadingStats ? (
+            <p className="text-2xl font-bold text-zinc-400">...</p>
+          ) : (
+            <p className="text-3xl font-bold text-green-600">
+              {stats?.recent_documents.reduce((sum, doc) => sum + (doc.page_count || 0), 0) || 0}
+            </p>
+          )}
+        </div>
 
-        {/* Search */}
-        <Link
-          href="/search"
-          className="block p-6 border rounded-lg hover:border-orange-500 hover:shadow-md transition-all"
-        >
-          <div className="flex items-center mb-3">
-            <svg className="w-8 h-8 text-orange-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        <div className="p-6 border rounded-lg bg-gradient-to-br from-purple-50 to-white">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-zinc-600">Text Chunks</h3>
+            <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
-            <h2 className="text-xl font-semibold">Search Papers</h2>
           </div>
-          <p className="text-sm text-zinc-600">
-            Semantic search across all uploaded documents
-          </p>
-        </Link>
-
-        {/* Analysis */}
-        <Link
-          href="/analysis"
-          className="block p-6 border rounded-lg hover:border-red-500 hover:shadow-md transition-all"
-        >
-          <div className="flex items-center mb-3">
-            <svg className="w-8 h-8 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <h2 className="text-xl font-semibold">AI Analysis</h2>
-          </div>
-          <p className="text-sm text-zinc-600">
-            Get AI-powered insights and summaries
-          </p>
-        </Link>
-
-        {/* Compare Papers */}
-        <Link
-          href="/compare"
-          className="block p-6 border rounded-lg hover:border-teal-500 hover:shadow-md transition-all"
-        >
-          <div className="flex items-center mb-3">
-            <svg className="w-8 h-8 text-teal-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 8l2 2 4-4" />
-            </svg>
-            <h2 className="text-xl font-semibold">Compare Papers</h2>
-          </div>
-          <p className="text-sm text-zinc-600">
-            Side-by-side AI comparison of multiple documents
-          </p>
-        </Link>
-
-        {/* Interactive Chat */}
-        <Link
-          href="/chat"
-          className="block p-6 border rounded-lg hover:border-indigo-500 hover:shadow-md transition-all"
-        >
-          <div className="flex items-center mb-3">
-            <svg className="w-8 h-8 text-indigo-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            <h2 className="text-xl font-semibold">Interactive Chat</h2>
-          </div>
-          <p className="text-sm text-zinc-600">
-            Q&A conversation with AI about your papers
-          </p>
-        </Link>
-
-        {/* Profile */}
-        <Link
-          href="/profile"
-          className="block p-6 border rounded-lg hover:border-zinc-500 hover:shadow-md transition-all"
-        >
-          <div className="flex items-center mb-3">
-            <svg className="w-8 h-8 text-zinc-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <h2 className="text-xl font-semibold">Profile</h2>
-          </div>
-          <p className="text-sm text-zinc-600">
-            View and manage your account settings
-          </p>
-        </Link>
+          {loadingStats ? (
+            <p className="text-2xl font-bold text-zinc-400">...</p>
+          ) : (
+            <p className="text-3xl font-bold text-purple-600">{stats?.total_chunks || 0}</p>
+          )}
+        </div>
       </div>
 
-      {/* Features Section */}
-      <section className="mt-12 rounded-lg border bg-gradient-to-r from-blue-50 to-indigo-50 p-8">
-        <h2 className="text-2xl font-bold mb-4">Platform Features</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="font-semibold text-lg mb-2 flex items-center">
-              <span className="text-blue-600 mr-2">✓</span>
-              Advanced Processing
-            </h3>
-            <ul className="text-sm text-zinc-700 space-y-1 ml-6">
-              <li>• Automatic DOI extraction and validation</li>
-              <li>• OCR support for scanned PDFs</li>
-              <li>• Table and figure extraction</li>
-              <li>• Reference parsing</li>
-            </ul>
+      {/* Recent Papers */}
+      <div className="border rounded-lg p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Recent Papers</h2>
+        {loadingStats ? (
+          <p className="text-zinc-600">Loading recent papers...</p>
+        ) : stats?.recent_documents && stats.recent_documents.length > 0 ? (
+          <div className="space-y-3">
+            {stats.recent_documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-start justify-between p-4 border rounded hover:border-blue-500 hover:shadow-sm transition-all"
+              >
+                <div className="flex-1">
+                  <h3 className="font-medium text-zinc-900 mb-1">
+                    {doc.title || `Document ${doc.id}`}
+                  </h3>
+                  <div className="flex items-center gap-4 text-sm text-zinc-500">
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {new Date(doc.upload_date).toLocaleDateString()}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      {doc.page_count || 0} pages
+                    </span>
+                  </div>
+                </div>
+                <div className="ml-4 flex gap-2">
+                  <button
+                    onClick={() => router.push(`/analysis?document_id=${doc.id}`)}
+                    className="px-3 py-1 text-blue-600 hover:bg-blue-50 rounded text-sm font-medium transition-colors"
+                    title="Analyze this paper"
+                  >
+                    Analyze
+                  </button>
+                  <button
+                    onClick={() => router.push(`/chat?document_id=${doc.id}`)}
+                    className="px-3 py-1 text-green-600 hover:bg-green-50 rounded text-sm font-medium transition-colors"
+                    title="Chat about this paper"
+                  >
+                    Chat
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-          <div>
-            <h3 className="font-semibold text-lg mb-2 flex items-center">
-              <span className="text-green-600 mr-2">✓</span>
-              Smart Search & Analysis
-            </h3>
-            <ul className="text-sm text-zinc-700 space-y-1 ml-6">
-              <li>• Semantic search with vector embeddings</li>
-              <li>• AI-powered summaries and insights</li>
-              <li>• Document comparison</li>
-              <li>• Interactive Q&A chat</li>
-            </ul>
+        ) : (
+          <div className="text-center py-12">
+            <svg className="w-16 h-16 mx-auto text-zinc-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-zinc-600 mb-4">No papers uploaded yet</p>
+            <button
+              onClick={() => router.push("/upload")}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Upload Your First Paper
+            </button>
           </div>
-        </div>
-      </section>
+        )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <button
+          onClick={() => router.push("/upload")}
+          className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-sm transition-all text-center"
+        >
+          <div className="text-2xl mb-2">📤</div>
+          <div className="text-sm font-medium">Upload Paper</div>
+        </button>
+        <button
+          onClick={() => router.push("/search")}
+          className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-sm transition-all text-center"
+        >
+          <div className="text-2xl mb-2">🔍</div>
+          <div className="text-sm font-medium">Search</div>
+        </button>
+        <button
+          onClick={() => router.push("/chat")}
+          className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-sm transition-all text-center"
+        >
+          <div className="text-2xl mb-2">💬</div>
+          <div className="text-sm font-medium">Ask AI</div>
+        </button>
+        <button
+          onClick={() => router.push("/compare")}
+          className="p-4 border rounded-lg hover:border-blue-500 hover:shadow-sm transition-all text-center"
+        >
+          <div className="text-2xl mb-2">⚖️</div>
+          <div className="text-sm font-medium">Compare</div>
+        </button>
+      </div>
     </div>
   );
 }

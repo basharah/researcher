@@ -15,6 +15,10 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [organization, setOrganization] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPwd, setChangingPwd] = useState(false);
   const router = useRouter();
   const toasts = useToasts();
   const { authed } = useAuth();
@@ -90,6 +94,7 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
       <h1 className="text-2xl font-semibold">Profile</h1>
+      
       <form className="mt-6 space-y-4" onSubmit={handleSave}>
         <div>
           <label className="block text-sm text-zinc-600">Email</label>
@@ -133,6 +138,81 @@ export default function ProfilePage() {
           </button>
         </div>
       </form>
+
+      <div className="border-t pt-8 mt-10">
+        <h2 className="text-xl font-semibold mb-4">Change Password</h2>
+        <form
+          className="space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setFieldErrors({});
+            setError(null);
+            if (newPassword !== confirmPassword) {
+              setFieldErrors((p) => ({ ...p, confirmPassword: "Passwords do not match" }));
+              return;
+            }
+            setChangingPwd(true);
+            try {
+              await api.apiFetch("/auth/change-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+              });
+              toasts.push({ type: "success", message: "Password changed" });
+              setCurrentPassword("");
+              setNewPassword("");
+              setConfirmPassword("");
+            } catch (err: any) {
+              setError(formatError(err));
+            } finally {
+              setChangingPwd(false);
+            }
+          }}
+        >
+          <div>
+            <label className="block text-sm text-zinc-600">Current password</label>
+            <input
+              name="currentPassword"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="mt-1 w-full rounded border px-3 py-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-zinc-600">New password</label>
+            <input
+              name="newPassword"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="mt-1 w-full rounded border px-3 py-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-zinc-600">Confirm new password</label>
+            <input
+              name="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="mt-1 w-full rounded border px-3 py-2"
+              required
+            />
+            {fieldErrors.confirmPassword && (
+              <div className="mt-1 text-sm text-red-600">{fieldErrors.confirmPassword}</div>
+            )}
+          </div>
+          {error && <div className="text-sm text-red-600">{error}</div>}
+          <div>
+            <button disabled={changingPwd} className="rounded bg-black px-4 py-2 text-white">
+              {changingPwd ? "Changing…" : "Change password"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "../components/Header";
+import Navigation from "../components/Navigation";
 import ToastProvider from "../components/ToastProvider";
 import { AuthProvider } from "../components/AuthProvider";
 
@@ -36,6 +37,7 @@ export default function RootLayout({
         <AuthProvider>
           <ToastProvider>
             <Header />
+            <Navigation />
             <main className="mx-auto max-w-7xl">{children}</main>
           </ToastProvider>
         </AuthProvider>

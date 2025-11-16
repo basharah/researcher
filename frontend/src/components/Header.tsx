@@ -27,38 +27,25 @@ export default function Header() {
     <header className="w-full border-b bg-white/50 py-3 px-6">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/" className="font-semibold">
-            Researcher
+          <Link href="/" className="text-xl font-bold text-blue-600">
+            📚 Researcher
           </Link>
-          <nav className="hidden gap-3 sm:flex">
-            <Link href="/dashboard" className="text-sm text-zinc-600 hover:underline">
-              Dashboard
-            </Link>
-            {authed && (
-              <>
-                <Link href="/upload" className="text-sm text-zinc-600 hover:underline">
-                  Upload
-                </Link>
-                <Link href="/profile" className="text-sm text-zinc-600 hover:underline">
-                  Profile
-                </Link>
-              </>
-            )}
-            {!authed && enableRegistration && (
-              <Link href="/register" className="text-sm text-zinc-600 hover:underline">
-                Register
-              </Link>
-            )}
-          </nav>
         </div>
 
         <div>
           {!authed ? (
-            <Link href="/login" className="rounded-md bg-black px-3 py-2 text-sm text-white">
-              Sign in
-            </Link>
+            <div className="flex items-center gap-3">
+              {enableRegistration && (
+                <Link href="/register" className="text-sm text-zinc-600 hover:underline">
+                  Register
+                </Link>
+              )}
+              <Link href="/login" className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
+                Sign in
+              </Link>
+            </div>
           ) : (
-            <button onClick={handleLogout} className="rounded-md border px-3 py-2 text-sm">
+            <button onClick={handleLogout} className="rounded-md border px-4 py-2 text-sm hover:bg-zinc-50">
               Sign out
             </button>
           )}

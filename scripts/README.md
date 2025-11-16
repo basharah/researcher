@@ -36,6 +36,11 @@ Starts all services with automatic database migrations.
   - Tests user registration, login, and token management
   - Validates PostgreSQL user storage
 
+- **`test-user-management.sh`** - User management and password change
+  - Tests admin user creation, update, disable/enable
+  - Tests password change functionality
+  - Validates admin-only endpoints
+
 ### Service Tests
 
 - **`test-service.sh`** - Basic document-processing service test
@@ -91,6 +96,11 @@ Starts all services with automatic database migrations.
   - Measures performance improvement
 
 ## 🛠️ Utility Scripts
+
+- **`create-admin-user.sh`** - Create default admin user
+  - Creates admin user in running API Gateway
+  - Usage: `./scripts/create-admin-user.sh`
+  - Default credentials: admin@bashars.eu / admin123
 
 - **`clean-deploy.sh`** - Clean deployment
   - Removes containers, volumes, and images

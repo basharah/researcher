@@ -144,7 +144,13 @@ Build and deploy with production configuration:
 - Frontend: <http://localhost:3000>
 - API Health: <http://localhost:8000/api/v1/health>
 
-See [Deployment Guide](docs/DEPLOYMENT_COMPLETE.md) for production deployment details.
+**Default admin credentials:**
+
+- Email: `admin@bashars.eu`
+- Password: `admin123`
+- ⚠️ **Change password immediately after first login!**
+
+See [Deployment Guide](docs/DEPLOYMENT_COMPLETE.md) for production deployment details and [Default Admin User Guide](docs/DEFAULT_ADMIN_USER.md) for admin user configuration.
 
 ## 🧪 Testing
 

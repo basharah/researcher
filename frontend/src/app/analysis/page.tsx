@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch } from "@/lib/api";
 
@@ -25,6 +25,7 @@ interface AnalysisResult {
 
 export default function AnalysisPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { authed, loading: authLoading } = useAuth();
   
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -54,7 +55,17 @@ export default function AnalysisPage() {
     setLoadingDocs(true);
     try {
       const data = await apiFetch("/documents?limit=100");
-      setDocuments(data?.documents || []);
+      const docs = data?.documents || [];
+      setDocuments(docs);
+      
+      // Auto-select document from URL parameter
+      const docIdParam = searchParams.get('document_id');
+      if (docIdParam) {
+        const docId = parseInt(docIdParam, 10);
+        if (!isNaN(docId) && docs.some((d: Document) => d.id === docId)) {
+          setSelectedDocumentId(docId);
+        }
+      }
     } catch (err) {
       console.error("Failed to fetch documents:", err);
       setError("Failed to load documents");

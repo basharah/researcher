@@ -49,12 +49,15 @@ Understand the system architecture and how it evolved:
 
 User authentication and storage:
 
+- **[DEFAULT_ADMIN_USER.md](DEFAULT_ADMIN_USER.md)** - Default admin user configuration and setup
 - **[AUTHENTICATION_GUIDE.md](AUTHENTICATION_GUIDE.md)** - Complete authentication system guide
 - **[AUTHENTICATION_IMPLEMENTATION.md](AUTHENTICATION_IMPLEMENTATION.md)** - Implementation details and decisions
 - **[AUTH_QUICK_REF.md](AUTH_QUICK_REF.md)** - Quick reference for auth endpoints and flows
 - **[USER_STORAGE_GUIDE.md](USER_STORAGE_GUIDE.md)** - User data storage architecture
 - **[POSTGRESQL_USER_STORAGE_COMPLETE.md](POSTGRESQL_USER_STORAGE_COMPLETE.md)** - PostgreSQL migration from Redis
 - **[COOKIE_AUTH_FIX.md](COOKIE_AUTH_FIX.md)** - Cookie-based authentication fixes
+
+Related scripts: `../scripts/create-admin-user.sh`
 
 ## GPU & Performance
 

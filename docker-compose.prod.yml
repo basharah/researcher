@@ -176,6 +176,9 @@ services:
       - ENVIRONMENT=production
       - DEBUG=false
       - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@bashars.eu}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-admin123}
+      - DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME:-System Administrator}
     volumes:
       - ./services/api-gateway:/app:ro  # Read-only
     depends_on:

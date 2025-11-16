@@ -245,6 +245,7 @@ async def get_current_user(
     
     user_id = payload.get("sub")
     email = payload.get("email")
+    role = payload.get("role", "user")  # Default to user if not in token
     
     if user_id is None:
         raise HTTPException(
@@ -257,7 +258,8 @@ async def get_current_user(
     # Full user data can be fetched from DB by endpoint if needed
     return {
         "user_id": user_id,
-        "email": email
+        "email": email,
+        "role": role
     }
 
 

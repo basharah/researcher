@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../components/AuthProvider";
 import { apiFetch } from "../../lib/api";
 
@@ -37,6 +37,7 @@ interface ChatResponse {
 
 export default function ChatPage() {
   const router = useRouter();
+    const searchParams = useSearchParams();
   const { authed, loading } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocs, setSelectedDocs] = useState<number[]>([]);
@@ -70,7 +71,20 @@ export default function ChatPage() {
   const loadDocuments = async () => {
     try {
       const data = await apiFetch("/documents");
-      setDocuments(data.documents || []);
+      const docs = data.documents || [];
+      setDocuments(docs);
+      
+      // Auto-select document from URL parameter or if only one exists
+      const docIdParam = searchParams.get('document_id');
+      if (docIdParam) {
+        const docId = parseInt(docIdParam, 10);
+        if (!isNaN(docId) && docs.some((d: Document) => d.id === docId)) {
+          setSelectedDocs([docId]);
+        }
+      } else if (docs.length === 1) {
+        // Auto-select if only one document
+        setSelectedDocs([docs[0].id]);
+      }
     } catch (error) {
       console.error("Failed to load documents:", error);
     }
@@ -86,6 +100,14 @@ export default function ChatPage() {
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
+
+    // Warn if no documents selected and RAG is enabled
+    if (useRAG && selectedDocs.length === 0) {
+      const confirmSend = window.confirm(
+        "No documents selected. The AI won't have context about your papers. Continue anyway?"
+      );
+      if (!confirmSend) return;
+    }
 
     const userMessage: ChatMessage = {
       role: "user",
@@ -260,7 +282,11 @@ export default function ChatPage() {
               Document Context
             </h3>
             <p className="text-xs text-zinc-500 mb-3">
-              Select documents to provide context for your questions
+              {selectedDocs.length === 0 ? (
+                <span className="text-orange-600 font-medium">⚠️ Select a document to ask questions about it</span>
+              ) : (
+                <span>Selected documents will be used for context</span>
+              )}
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {documents.length === 0 ? (

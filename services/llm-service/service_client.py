@@ -75,7 +75,7 @@ class ServiceClient:
                     payload["section"] = section
                 
                 response = await client.post(
-                    f"{self.vector_url}/search",
+                    f"{self.vector_url}/api/v1/search",
                     json=payload
                 )
                 

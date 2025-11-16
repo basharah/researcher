@@ -381,6 +381,9 @@ async def chat(request: ChatRequest):
     try:
         messages = []
         sources = None
+        rag_used = False
+        chunks_count = 0
+        top_score = None
         
         # Add system prompt with context if using RAG
         if request.use_rag and request.document_context:
@@ -397,12 +400,42 @@ async def chat(request: ChatRequest):
                 )
                 
                 if search_results and search_results.get("chunks"):
-                    context_chunks = [chunk["text"] for chunk in search_results["chunks"]]
-                    sources = search_results["chunks"]
-                    
+                    rag_used = True
+                    chunks = search_results["chunks"]
+                    chunks_count = len(chunks)
+                    try:
+                        top_score = chunks[0].get("similarity_score")
+                    except Exception:
+                        top_score = None
+                    context_chunks = [chunk["text"] for chunk in chunks]
+                    sources = chunks
                     system_prompt = prompt_templates.get_chat_prompt_with_context(context_chunks)
                     messages.append({"role": "system", "content": system_prompt})
-        else:
+                else:
+                    # Fallback: add minimal document metadata as context if available
+                    try:
+                        # Only attempt when exactly one document is specified
+                        if len(request.document_context) == 1:
+                            doc_id = request.document_context[0]
+                            doc = await service_client.get_document(doc_id)
+                            sections = await service_client.get_document_sections(doc_id)
+                            title = (doc or {}).get("title") or (doc or {}).get("filename") or f"Document {doc_id}"
+                            authors = (doc or {}).get("authors") or []
+                            abstract = (sections or {}).get("abstract") or (doc or {}).get("abstract")
+                            meta_context = [
+                                f"Title: {title}",
+                                f"Authors: {', '.join(authors) if isinstance(authors, list) else authors}",
+                            ]
+                            if abstract:
+                                meta_context.append(f"Abstract: {abstract}")
+                            system_prompt = prompt_templates.get_chat_prompt_with_context(meta_context)
+                            messages.append({"role": "system", "content": system_prompt})
+                    except Exception:
+                        # If metadata fetch fails, fall back to default system prompt below
+                        pass
+        
+        if not messages:
+            # Default system prompt when no RAG context or fallback provided
             messages.append({"role": "system", "content": prompt_templates.get_system_prompt()})
         
         # Add conversation history
@@ -417,6 +450,10 @@ async def chat(request: ChatRequest):
         )
         
         processing_time = (time.time() - start_time) * 1000
+        logger.info(
+            f"/chat rag_used={rag_used} doc_context={request.document_context} "
+            f"chunks={chunks_count} top_score={top_score} time_ms={processing_time:.2f}"
+        )
         
         return ChatResponse(
             message=response_text,
