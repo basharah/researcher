@@ -1,42 +1,39 @@
 # Research Paper Analysis Chatbot
 
-All core phases (1–5 backend + initial frontend scaffold) are complete. This README reflects the consolidated structure (docs/, scripts/, tests/) and migration-first startup pattern.
+A production-ready microservices platform for AI-powered research paper analysis with semantic search, RAG-enhanced insights, and interactive chat.
 
 ## 🎯 Project Overview
 
-### Documentation Hub
+### Quick Links
 
-Primary entry point: `docs/INDEX.md`
+📚 **[Complete Documentation Index](docs/INDEX.md)** - Browse all documentation organized by topic
 
-Selected quick links:
+🚀 **[Getting Started Guide](docs/GETTING_STARTED.md)** - Environment setup and first steps
 
-- Phase 2 (Vector DB Integration): `docs/PHASE2_INTEGRATION_COMPLETE.md`
-- Phase 3 (LLM Service): `docs/PHASE3_LLM_SERVICE.md`
-- Phase 4 (API Gateway): `docs/PHASE4_API_GATEWAY.md`, `docs/PHASE4_COMPLETE.md`
-- Phase 5 (Frontend Overview): `docs/PHASE5_FRONTEND.md`
-- Authentication Guides: `docs/AUTHENTICATION_GUIDE.md`, `docs/AUTH_QUICK_REF.md`
-- GPU Setup & Configuration: `docs/GPU_SETUP.md`, `docs/GPU_CONFIGURATION.md`
-- User Storage & Migration: `docs/USER_STORAGE_GUIDE.md`, `docs/POSTGRESQL_USER_STORAGE_COMPLETE.md`
-- Extraction Testing Summary: `docs/EXTRACTION_TESTING_SUMMARY.md`
+🧪 **[Testing Guide](tests/README.md)** - Python tests and integration validation
 
-### Deep Dives
+🔧 **[Scripts Reference](scripts/README.md)** - All utility and test scripts
 
-- Architecture & Data Flows: `docs/INDEX.md` (big-picture and entry points)
-- Vector DB integration details: `docs/PHASE2_INTEGRATION_COMPLETE.md`
-- LLM orchestration and prompts: `docs/PHASE3_LLM_SERVICE.md`
-- API Gateway design & health aggregation: `docs/PHASE4_API_GATEWAY.md`
-- GPU setup, config, and verification: `docs/GPU_SETUP.md`, `docs/GPU_CONFIGURATION.md`
-- Authentication & security model: `docs/AUTHENTICATION_GUIDE.md`, `docs/AUTHENTICATION_IMPLEMENTATION.md`, `docs/AUTH_QUICK_REF.md`
-- User storage migration (Redis → PostgreSQL): `docs/USER_STORAGE_GUIDE.md`, `docs/POSTGRESQL_USER_STORAGE_COMPLETE.md`
+### System Capabilities
 
-The system is a production-style microservices platform for research paper analysis with PDF ingestion, rich extraction (tables, figures, references, metadata), semantic vector search, RAG-enhanced LLM analysis, an API gateway, and GPU acceleration.
+- **PDF Upload & Processing**: Extract text, metadata, tables, figures, and references from research papers
+- **Semantic Search**: Find relevant content using vector embeddings with GPU acceleration
+- **AI-Powered Analysis**: Generate summaries, extract methodologies, compare papers using LLMs (OpenAI/Anthropic)
+- **Interactive Chat**: Q&A interface with RAG (Retrieval-Augmented Generation)
+- **Async Processing**: Background jobs with Celery for scalable document ingestion
+- **Production-Ready**: Docker Compose orchestration, health monitoring, authentication
 
-### Key Features
+### Documentation Structure
 
-- **PDF Upload & Processing**: Extract text, metadata, and sections from research papers
-- **Semantic Search**: Find relevant papers using vector embeddings
-- **AI-Powered Analysis**: Extract literature reviews and conduct research using LLMs
-- **Interactive Chat**: User-friendly interface for research assistance
+All documentation is organized in the `docs/` directory:
+
+- **Getting Started**: [GETTING_STARTED.md](docs/GETTING_STARTED.md), [LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md)
+- **Architecture**: Phase completion docs ([Phase 2](docs/PHASE2_INTEGRATION_COMPLETE.md), [Phase 3](docs/PHASE3_LLM_SERVICE.md), [Phase 4](docs/PHASE4_API_GATEWAY.md), [Phase 5](docs/PHASE5_FRONTEND.md))
+- **Authentication**: [AUTHENTICATION_GUIDE.md](docs/AUTHENTICATION_GUIDE.md), [AUTH_QUICK_REF.md](docs/AUTH_QUICK_REF.md)
+- **GPU Setup**: [GPU_SETUP.md](docs/GPU_SETUP.md), [GPU_CONFIGURATION.md](docs/GPU_CONFIGURATION.md)
+- **Deployment**: [DEPLOYMENT_COMPLETE.md](docs/DEPLOYMENT_COMPLETE.md)
+
+**Browse the full index**: [docs/INDEX.md](docs/INDEX.md)
 
 ## 🏗️ Architecture
 
@@ -86,254 +83,165 @@ The system is a production-style microservices platform for research paper analy
 - **State Management**: Context API / Redux
 - **HTTP Client**: Axios
 
-## 🚀 Quick Start (Migration-First Stack)
+## 🚀 Quick Start
+
+### Development Mode
 
 Prerequisites:
 
-- Docker / Docker Compose
-- NVIDIA GPU (optional) with container toolkit (see `docs/GPU_SETUP.md`)
-- OpenAI / Anthropic API keys for LLM features (optional until Phase 3 use)
+- Docker and Docker Compose
+- (Optional) NVIDIA GPU with container toolkit - see [GPU Setup Guide](docs/GPU_SETUP.md)
+- (Optional) OpenAI/Anthropic API keys - see [.env.example](.env.example)
 
-Startup (all core services, applies migrations before bring-up):
+**Start all services:**
 
 ```bash
-./scripts/start.sh  # or ./start.sh (legacy root script maintained)
+./scripts/start.sh
 ```
 
-Health check:
+This script:
+
+- Starts PostgreSQL, Redis, and all microservices
+- Runs database migrations automatically
+- Enables GPU acceleration if available
+
+**Verify services:**
 
 ```bash
+# Check all services via API Gateway
 curl http://localhost:8000/api/v1/health
+
+# Or check individual services
+curl http://localhost:8001/health  # Document Processing
+curl http://localhost:8002/health  # Vector DB
+curl http://localhost:8003/health  # LLM Service
 ```
 
-If running only document-processing service:
+**Access points:**
+
+- API Gateway: <http://localhost:8000/api/v1/>
+- Frontend: <http://localhost:3000> (if running frontend service)
+- Flower (Celery monitoring): <http://localhost:5555>
+
+### Production Mode
+
+Build and deploy with production configuration:
 
 ```bash
-docker-compose up -d postgres redis document-processing
+# Build all images
+./build-images.sh
+
+# Start production stack
+./start-prod.sh --build
+
+# Or with custom API base URL
+./build-images.sh --api-base https://your-domain/api/v1
+./start-prod.sh
 ```
 
-Access points:
+**Production endpoints:**
 
-- API Gateway unified endpoint: [http://localhost:8000/api/v1/](http://localhost:8000/api/v1/)
-- Document Processing (direct): [http://localhost:8001](http://localhost:8001)
-- Vector DB: [http://localhost:8002](http://localhost:8002)
-- LLM Service: [http://localhost:8003](http://localhost:8003)
+- Frontend: <http://localhost:3000>
+- API Health: <http://localhost:8000/api/v1/health>
 
-GPU verification:
+See [Deployment Guide](docs/DEPLOYMENT_COMPLETE.md) for production deployment details.
+
+## 🧪 Testing
+
+### Run Tests
+
+All test scripts are in the `scripts/` directory:
 
 ```bash
-./scripts/verify-gpu.sh
+# Integration tests
+./scripts/test-phase2-integration.sh    # Vector DB integration
+./scripts/test-phase4-integration.sh    # API Gateway workflows
+./scripts/test-extraction-endpoints.sh   # PDF extraction features
+
+# Feature tests
+./scripts/test-pipeline.sh               # Full pipeline
+./scripts/test-auth-postgresql.sh        # Authentication
+
+# GPU tests
+./scripts/verify-gpu.sh                  # Verify GPU setup
+./scripts/test-gpu.sh                    # GPU performance
 ```
 
-## 📖 Learning Path - Build Gradually
+### Python Tests
 
-### **Phase 1: Document Processing Service** ✅ (Complete)
-
-**What You'll Learn:**
-
-- FastAPI basics and REST API design
-- PDF text extraction techniques
-- Database modeling with SQLAlchemy
-- File upload handling
-- Docker containerization
-
-**Tasks:**
-
-1. ✅ Upload PDF research papers
-2. ✅ Extract text and metadata
-3. ✅ Parse sections (abstract, introduction, etc.)
-4. ✅ Store in PostgreSQL database
-
-**Get Started:**
+Unit and integration tests are in the `tests/` directory:
 
 ```bash
-cd services/document-processing
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8001
-```
-
-**Test it:**
-
-```bash
-# Upload a PDF
-curl -X POST "http://localhost:8001/upload" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@your_paper.pdf"
-
-# List documents
-curl "http://localhost:8001/documents"
-```
-
-**Next Steps:**
-
-- [ ] Add support for DOI extraction
-- [ ] Implement batch upload
-- [ ] Add OCR for scanned PDFs
-- [ ] Improve section detection accuracy
-
----
-
-### **Phase 2: Vector Database Service** ✅ (Complete)
-
-**What You'll Learn:**
-
-- Vector embeddings and semantic search
-- Working with pgvector extension
-- Sentence transformers
-- Similarity search algorithms
-
-**Features to Implement:**
-
-1. Generate embeddings for documents
-2. Store vectors in PostgreSQL with pgvector
-3. Implement semantic search
-4. Create similar documents endpoint
-
-**Learning Resources:**
-
-- [pgvector documentation](https://github.com/pgvector/pgvector)
-- [Sentence Transformers](https://www.sbert.net/)
-
----
-
-### **Phase 3: LLM Service** ✅ (Complete)
-
-**What You'll Learn:**
-
-- LangChain framework
-- Prompt engineering
-- OpenAI/Claude API integration
-- Token management and cost optimization
-
-**Features to Implement:**
-
-1. Literature review extraction
-2. Research gap identification
-3. Methodology comparison
-4. Citation analysis
-5. Question answering over documents
-
-**Learning Resources:**
-
-- [LangChain Documentation](https://python.langchain.com/)
-- [OpenAI API](https://platform.openai.com/docs)
-
----
-
-### **Phase 4: API Gateway** ✅ (Complete)
-
-**What You'll Learn:**
-
-- Service orchestration
-- API composition patterns
-- Load balancing
-- Error handling across services
-
-**Features to Implement:**
-
-1. Unified API endpoint
-2. Request routing
-3. Service health monitoring
-4. Rate limiting
-5. Authentication & authorization
-
----
-
-### **Phase 5: Frontend** ✅ (Initial scaffold & integration complete)
-
-**What You'll Learn:**
-
-- React application structure
-- State management
-- WebSocket for real-time chat
-- File upload UI
-- Results visualization
-
-**Features to Implement:**
-
-1. Chat interface
-2. Document upload widget
-3. Search and filter documents
-4. Visualization of analysis results
-5. Export functionality
-
-## 🧪 Testing Your Services
-
-Each phase includes testing:
-
-```bash
-# Run tests for document processing
-cd services/document-processing
-pytest
+# Run specific test
+python tests/test_comprehensive.py      # PDF extraction
+python tests/test_vector_db.py          # Vector DB integration
 
 # Run all tests
-docker-compose -f docker-compose.test.yml up
+pytest tests/
 ```
 
-## 📊 Current Project Structure
+**Documentation:**
+
+- [Scripts Reference](scripts/README.md) - All shell test scripts
+- [Tests Documentation](tests/README.md) - Python test suite
+
+## 📖 Learning Path
+
+All phases are complete. Use these guides to understand each component:
+
+- **[Phase 1: Document Processing](docs/GETTING_STARTED.md)** - PDF upload, extraction, metadata
+- **[Phase 2: Vector DB](docs/PHASE2_INTEGRATION_COMPLETE.md)** - Semantic search with embeddings
+- **[Phase 3: LLM Service](docs/PHASE3_LLM_SERVICE.md)** - AI analysis and RAG
+- **[Phase 4: API Gateway](docs/PHASE4_API_GATEWAY.md)** - Service orchestration
+- **[Phase 5: Frontend](docs/PHASE5_FRONTEND.md)** - Next.js chat interface
+- **[Learning Guide](docs/LEARNING_GUIDE.md)** - Detailed Phase 1 walkthrough
+
+## 📊 Project Structure
 
 ```text
 researcher/
-├── .github/
-│   └── copilot-instructions.md    # Project context for AI
-├── services/
-│   ├── document-processing/       # Phase 1
-│   │   ├── main.py
-│   │   ├── models.py
-│   │   ├── database.py
-│   │   ├── utils/
-│   │   ├── requirements.txt
-│   │   ├── Dockerfile
-│   │   └── README.md
-│   ├── vector-db/                 # Phase 2
-│   │   ├── main.py
-│   │   ├── requirements.txt
-│   │   └── Dockerfile
-│   ├── llm-service/               # Phase 3
-│   │   ├── main.py
-│   │   ├── requirements.txt
-│   │   └── Dockerfile
-│   └── api-gateway/               # Phase 4
-├── docs/                          # Consolidated documentation (see INDEX.md)
-├── scripts/                       # Test / utility scripts (start, gpu, integration)
-├── tests/                         # Python test scripts (extraction, vector db)
-│       ├── main.py
-│       ├── requirements.txt
-│       └── Dockerfile
-├── frontend/                      # Phase 5 🔲
-├── shared/                        # Shared utilities
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
+├── docs/                          # 📚 All documentation (see INDEX.md)
+├── scripts/                       # 🔧 Utility and test scripts
+├── tests/                         # 🧪 Python unit and integration tests
+├── services/                      # 🚀 Microservices
+│   ├── document-processing/       # Phase 1: PDF extraction
+│   ├── vector-db/                 # Phase 2: Semantic search
+│   ├── llm-service/               # Phase 3: AI analysis
+│   └── api-gateway/               # Phase 4: Orchestration
+├── frontend/                      # Phase 5: Next.js UI
+├── docker-compose.yml             # Development orchestration
+├── docker-compose.prod.yml        # Production orchestration
+├── build-images.sh                # Build all Docker images
+├── start-prod.sh                  # Production startup
 └── README.md                      # This file
 ```
 
 ## 🔧 Development Tips
 
-### Running Individual Services (Profiles)
+### Running Individual Services
 
-Each service can run independently:
+Use Docker Compose profiles:
 
 ```bash
 # Document Processing only
-docker-compose up postgres redis document-processing
+docker-compose up -d postgres redis document-processing
 
-# Add Vector DB (Phase 2)
-docker-compose --profile phase2 up
+# With Vector DB (Phase 2)
+docker-compose --profile phase2 up -d
 
-# Add LLM Service (Phase 3)
-docker-compose --profile phase3 up
+# With LLM Service (Phase 3)
+docker-compose --profile phase3 up -d
 
-# Full stack (Phase 4+)
-docker-compose --profile phase4 up
+# Full stack (all phases)
+docker-compose --profile phase4 up -d
 ```
 
-### Local Development (Single Service)
+### Local Development (Without Docker)
 
 ```bash
-# Set up Python virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Create Python virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
 # Install dependencies for a service
 cd services/document-processing
@@ -343,195 +251,109 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8001
 ```
 
-### Database Migrations (Manual Invocation)
+### Database Migrations
 
 ```bash
-# Create migration
+# From document-processing service directory
 cd services/document-processing
+
+# Create migration
 alembic revision --autogenerate -m "description"
 
-# Apply migration
+# Apply migrations
 alembic upgrade head
+```
+
+Or use the provided script:
+
+```bash
+./services/document-processing/migrate.sh
 ```
 
 ## 📝 API Documentation
 
-Each service provides interactive API documentation via Swagger UI:
+Each service provides interactive Swagger UI documentation:
 
-- Document Processing: [http://localhost:8001/docs](http://localhost:8001/docs)
-- Vector DB: [http://localhost:8002/docs](http://localhost:8002/docs)
-- LLM Service: [http://localhost:8003/docs](http://localhost:8003/docs)
-- API Gateway: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **API Gateway**: <http://localhost:8000/docs> - Unified API
+- **Document Processing**: <http://localhost:8001/docs> - Upload and extraction
+- **Vector DB**: <http://localhost:8002/docs> - Search and embeddings
+- **LLM Service**: <http://localhost:8003/docs> - AI analysis
 
 ## 🤝 Contributing
 
-This is a learning project! Feel free to:
+Contributions welcome! See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
-- Improve existing services
-- Add new features
-- Optimize performance
-- Enhance documentation
+## 📚 Additional Resources
 
-## 📚 Learning Resources
-
-### Microservices
-
-- [Microservices Patterns](https://microservices.io/patterns/index.html)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-
-### AI/ML for Research
-
-- [LangChain for Research](https://python.langchain.com/docs/use_cases/question_answering/)
-- [Semantic Scholar API](https://www.semanticscholar.org/product/api)
-
-### Vector Databases
-
-- [Vector Database Guide](https://www.pinecone.io/learn/vector-database/)
-
-## 🎓 Next Steps After Completion
-
-Once you've completed all phases:
-
-1. **Deploy to Cloud**: AWS, GCP, or Azure
-2. **Add Monitoring**: Prometheus, Grafana
-3. **Implement CI/CD**: GitHub Actions
-4. **Scale Services**: Kubernetes
-5. **Add More Features**:
-   - Citation network visualization
-
-## 🚢 Production Deployment (Docker)
-
-This repository ships with a production-optimized Docker Compose setup and helper scripts to build and run all services, including the Next.js frontend.
-
-- Compose file: `docker-compose.prod.yml`
-- Build script: `./build-images.sh`
-- Start script: `./start-prod.sh`
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Optional: NVIDIA drivers + NVIDIA Container Toolkit if you plan to enable GPUs later
-- Optional: LLM provider keys in your shell (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
-
-### One-liner start (uses existing images)
-
-```bash
-./start-prod.sh
-```
-
-### Build and start everything
-
-```bash
-# Build all images (base + services + frontend)
-./build-images.sh
-
-# Or build + start in one step
-./start-prod.sh --build
-```
-
-### Frontend API base (public URL)
-
-The browser uses `NEXT_PUBLIC_API_BASE` for API calls. When deploying behind a domain, embed your public API Gateway URL at build time:
-
-```bash
-./build-images.sh --api-base https://your-domain/api/v1
-./start-prod.sh
-```
-
-For local use, the default points to `http://localhost:8000/api/v1`.
-
-### Access
-
-- Frontend: `http://localhost:3000`
-- API Gateway Health: `http://localhost:8000/api/v1/health`
-- Flower (Celery): `http://localhost:5555`
-
-### Logs and stop
-
-```bash
-docker compose -f docker-compose.prod.yml logs -f
-docker compose -f docker-compose.prod.yml down
-```
-
-### Notes
-
-- CORS origins in API Gateway include `http://localhost:3000`. Add your domain to `CORS_ORIGINS` in `docker-compose.prod.yml` for production.
-- Vector DB is configured CPU-only by default for stability. See `docs/GPU_SETUP.md` if you want to enable GPUs.
-- The frontend image bakes the public API base for client requests; server-side rendering also reads it from env at runtime.
-   - Automated systematic reviews
-   - Research trend analysis
-   - Collaborative features
-
-## 📄 License
-
-MIT License - Feel free to use for learning and personal projects
+- **[Complete Documentation Index](docs/INDEX.md)** - Browse all docs
+- **[GPU Setup Guide](docs/GPU_SETUP.md)** - Configure GPU acceleration
+- **[Authentication Guide](docs/AUTHENTICATION_GUIDE.md)** - User auth and security
+- **[Deployment Guide](docs/DEPLOYMENT_COMPLETE.md)** - Production deployment
 
 ## 🆘 Troubleshooting
 
 ### Common Issues
 
-**Port already in use:**
+**Services won't start:**
 
 ```bash
-# Find and kill process
-lsof -ti:8001 | xargs kill -9
+# Check Docker is running
+docker ps
+
+# Rebuild and start clean
+docker-compose down -v
+./scripts/start.sh
 ```
 
-**Database connection failed:**
+**Port conflicts:**
 
 ```bash
-# Check PostgreSQL is running
-docker-compose ps postgres
-# View logs
-docker-compose logs postgres
+# Find process using port
+lsof -i :8000  # macOS/Linux
+netstat -ano | findstr :8000  # Windows
+
+# Change ports in docker-compose.yml if needed
 ```
 
-**Import errors:**
+**GPU not detected:**
 
 ```bash
-# Rebuild containers
-docker-compose build --no-cache
+# Verify GPU setup
+./scripts/verify-gpu.sh
+
+# See full GPU guide
+cat docs/GPU_SETUP.md
 ```
+
+**Tests failing:**
+
+```bash
+# Ensure services are running
+curl http://localhost:8000/api/v1/health
+
+# Check service logs
+docker-compose logs document-processing
+```
+
+**Database migrations failing:**
+
+```bash
+# Reset database
+docker-compose down -v
+./scripts/start.sh  # Migrations run automatically
+```
+
+For more help, see:
+
+- [Getting Started Guide](docs/GETTING_STARTED.md)
+- [Scripts Reference](scripts/README.md)
+- [Tests Documentation](tests/README.md)
+
+## 📄 License
+
+MIT License - Feel free to use for learning and projects.
 
 ---
 
-## 🔒 Authentication & User Storage
+**Last Updated**: November 2025
 
-Phase 4 includes full JWT auth (access + refresh), API keys, role-based access, and PostgreSQL user/token storage. See `docs/AUTHENTICATION_IMPLEMENTATION.md` and `docs/USER_STORAGE_GUIDE.md`.
-
-## 🧠 Retrieval-Augmented Generation (RAG)
-
-The LLM service performs document-aware analysis using semantic search results from the Vector DB (MiniLM 384-d embeddings). GPU acceleration is enabled for embeddings when available.
-
-## ⚙️ Performance & GPU
-
-Vector DB embeddings run on GPU 0; LLM can target GPU 1 for local models (future expansion). See `docs/GPU_CONFIGURATION.md`.
-
-## 🧪 Testing & Scripts
-
-Integration and feature test scripts now under `scripts/`:
-
-- Phase 2 integration: `scripts/test-phase2-integration.sh`
-- API Gateway integration: `scripts/test-phase4-integration.sh`
-- Extraction endpoints: `scripts/test-extraction-endpoints.sh`
-- Auth flow (PostgreSQL): `scripts/test-auth-postgresql.sh`
-- GPU verification & workload: `scripts/verify-gpu.sh`, `scripts/test-gpu.sh`
-
-Python tests in `tests/` (transitioning toward pytest harness):
-
-- `tests/test_comprehensive.py`
-- `tests/test_vector_db.py`
-- `tests/test.py`
-
-Pytest configuration added in `pytest.ini` – run all tests:
-
-```bash
-pytest
-```
-
-## 🧼 Ongoing Cleanup
-
-Remaining cleanup tasks tracked internally: markdown lint adjustments, root doc stubs, expanding automated test coverage, and de-duplicating legacy root markdown files.
-
----
-**System ready.** Explore `docs/INDEX.md`, run `./scripts/start.sh`, and begin leveraging the full research workflow.

@@ -2,57 +2,65 @@
 
 ## Project Architecture & Big Picture
 
-**Microservices-based** research paper analysis system with Phases 1-4 complete. Services communicate via HTTP through a unified API Gateway, share PostgreSQL + pgvector for storage, and use Redis for caching.
+**Microservices-based** research paper analysis system with Phases 1-5 complete (backend + frontend). Services communicate via HTTP through a unified API Gateway, share PostgreSQL + pgvector for storage, and use Redis for caching.
 
 ### Service Communication Pattern
-```
-Frontend (8000) → API Gateway (8000) → Document Processing (8001)
+
+```text
+Frontend (3000) → API Gateway (8000) → Document Processing (8001)
                                      → Vector DB (8002)
                                      → LLM Service (8003)
+                                     → Celery Workers
                                             ↓
                                     PostgreSQL + Redis
 ```
 
-**Key Insight**: API Gateway provides a single entry point, orchestrating multi-service workflows. Document upload returns immediately while Vector DB processing happens asynchronously via `BackgroundTasks`.
+**Key Insight**: API Gateway provides a single entry point, orchestrating multi-service workflows. Document upload uses Celery for async processing.
 
-### Active Services (Phases 1-4 Complete)
-- **API Gateway** (port 8000): Unified API orchestrating all services, CORS-enabled for frontend, health monitoring, request statistics
-- **Document Processing** (port 8001): PDF upload, extraction (text, tables, figures, refs), stores in PostgreSQL
-- **Vector DB** (port 8002): Text chunking (500 chars, 50 overlap), sentence-transformers embeddings (384d), semantic search via pgvector, **GPU-accelerated** for faster embedding generation
+### Active Services (All Phases Complete)
+
+- **Frontend** (port 3000): Next.js app with search, analysis, compare, and chat interfaces
+- **API Gateway** (port 8000): Unified API orchestrating all services, CORS-enabled, health monitoring, authentication
+- **Document Processing** (port 8001): PDF upload, extraction (text, tables, figures, refs), async processing with Celery
+- **Vector DB** (port 8002): Text chunking (500 chars, 50 overlap), sentence-transformers embeddings (384d), semantic search via pgvector, **GPU-accelerated**
 - **LLM Service** (port 8003): AI-powered analysis using OpenAI/Anthropic, RAG-enabled Q&A, document comparison, interactive chat
-- **PostgreSQL**: Shared database with `documents` and `document_chunks` tables, pgvector extension enabled
-- **Redis**: Shared cache, prepared for rate limiting and session management
+- **Celery Workers**: Async job processing for document ingestion and vector embedding
+- **PostgreSQL**: Shared database with `documents`, `document_chunks`, `users`, `api_keys` tables, pgvector extension
+- **Redis**: Cache and Celery broker
+- **Flower** (port 5555): Celery task monitoring
 
 ### GPU Configuration
+
 System has **2 NVIDIA GPUs** (RTX 2080 Ti 11GB, GTX 960 4GB):
+
 - **Vector DB** uses GPU 0 (RTX 2080 Ti) for embedding generation (~10-50x faster than CPU)
 - **LLM Service** uses GPU 1 (GTX 960) reserved for local model inference (when implemented)
 - GPU allocation managed via `CUDA_VISIBLE_DEVICES` in docker-compose.yml
 - Sentence-transformers automatically detects and uses CUDA when available
 
-### Placeholders (Future Phases)
-- Frontend - React chat interface (Phase 5)
-
 ## Critical Developer Workflows
 
 ### Starting the System
+
 ```bash
-# Start all Phase 1-4 services (recommended)
-docker-compose --profile phase4 up -d
+# Development mode (recommended)
+./scripts/start.sh
 
 # Or manually
-docker-compose up -d postgres redis document-processing vector-db llm-service api-gateway
+docker-compose --profile phase4 up -d
 
-# Quick start script available: ./start.sh (Linux/Mac)
+# Production mode
+./start-prod.sh --build
 ```
 
 **First Startup**: Vector DB takes 30s-2min to download sentence-transformers model (all-MiniLM-L6-v2). **GPU reduces embedding time from ~5min to ~30s** for typical papers. Monitor with `docker logs -f vector-db-service`.
 
 **LLM Service**: Requires `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in `.env`. Service starts without keys but endpoints will fail.
 
-**API Gateway**: Provides unified access at `http://localhost:8000/api/v1/`. Frontend should use this endpoint.
+**API Gateway**: Provides unified access at `http://localhost:8000/api/v1/`. Frontend uses this endpoint.
 
 ### Testing Services
+
 ```bash
 # API Gateway health (checks all services)
 curl http://localhost:8000/api/v1/health
@@ -70,16 +78,15 @@ curl -X POST http://localhost:8000/api/v1/analyze \
   -H "Content-Type: application/json" \
   -d '{"document_id": 1, "analysis_type": "summary"}'
 
-# Complete workflow (upload + analyze)
-curl -X POST "http://localhost:8000/api/v1/workflow/upload-and-analyze?analysis_type=summary" \
-  -F "file=@paper.pdf"
-
-# Integration test scripts
-./test-phase2-integration.sh  # Vector DB integration
-./test-phase4-integration.sh  # API Gateway workflow (when created)
+# Integration test scripts (all in scripts/ directory)
+./scripts/test-phase2-integration.sh   # Vector DB integration
+./scripts/test-phase4-integration.sh   # API Gateway workflow
+./scripts/test-extraction-endpoints.sh # PDF extraction features
+./scripts/test-auth-postgresql.sh      # Authentication
 ```
 
 ### Database Migrations (Alembic)
+
 ```bash
 cd services/document-processing
 
@@ -92,10 +99,38 @@ docker exec document-processing-service alembic revision --autogenerate -m "desc
 # See: alembic/versions/20251104_01_add_extraction_fields.py for JSONB columns example
 ```
 
+## Documentation Organization
+
+**All documentation is in `docs/` directory:**
+
+- **Entry Point**: `docs/INDEX.md` - Complete documentation index
+- **Getting Started**: `docs/GETTING_STARTED.md`
+- **Phases**: `docs/PHASE2_INTEGRATION_COMPLETE.md`, `docs/PHASE3_LLM_SERVICE.md`, `docs/PHASE4_API_GATEWAY.md`, `docs/PHASE5_FRONTEND.md`
+- **Authentication**: `docs/AUTHENTICATION_GUIDE.md`, `docs/AUTH_QUICK_REF.md`
+- **GPU**: `docs/GPU_SETUP.md`, `docs/GPU_CONFIGURATION.md`
+- **Deployment**: `docs/DEPLOYMENT_COMPLETE.md`
+
+**Scripts are in `scripts/` directory:**
+
+- Start scripts: `scripts/start.sh`
+- Test scripts: `scripts/test-*.sh`
+- GPU scripts: `scripts/verify-gpu.sh`, `scripts/test-gpu.sh`
+
+See `scripts/README.md` for complete script documentation.
+
+**Tests are in `tests/` directory:**
+
+- Python tests: `tests/test_comprehensive.py`, `tests/test_vector_db.py`
+- Error handling: `tests/test_vector_client_errors.py`, `tests/test_service_client_errors.py`
+
+See `tests/README.md` for test documentation.
+
 ## Project-Specific Conventions
 
 ### API Versioning Pattern
+
 All endpoints use `/api/v1/` prefix. Router structure:
+
 ```python
 # main.py includes api_router at /api prefix
 app.include_router(api_router, prefix="/api")
@@ -193,15 +228,12 @@ result = await vector_client.process_document(...)
 ## Key Files & Directories
 
 **Must-read for understanding architecture:**
+
 - `docker-compose.yml`: Service definitions, ports, dependencies, profiles
-- `PHASE2_INTEGRATION_COMPLETE.md`: Vector DB integration guide
-- `PHASE3_LLM_SERVICE.md`: LLM service features and API examples
-- `services/document-processing/vector_client.py`: Inter-service HTTP communication pattern
-**Must-read for understanding architecture:**
-- `docker-compose.yml`: Service definitions, ports, dependencies, profiles
-- `PHASE2_INTEGRATION_COMPLETE.md`: Vector DB integration guide
-- `PHASE3_LLM_SERVICE.md`: LLM service features and API examples
-- `PHASE4_API_GATEWAY.md`: API Gateway documentation and usage
+- `docs/PHASE2_INTEGRATION_COMPLETE.md`: Vector DB integration guide
+- `docs/PHASE3_LLM_SERVICE.md`: LLM service features and API examples
+- `docs/PHASE4_API_GATEWAY.md`: API Gateway documentation and usage
+- `docs/PHASE5_FRONTEND.md`: Frontend implementation
 - `services/document-processing/vector_client.py`: Inter-service HTTP communication pattern
 - `services/document-processing/utils/pdf_parser.py`: Comprehensive extraction (700+ lines)
 - `services/vector-db/text_chunker.py`: Chunking strategy with overlap
@@ -211,6 +243,7 @@ result = await vector_client.process_document(...)
 - `services/api-gateway/service_client.py`: Unified HTTP client for all services
 
 **Service-specific patterns:**
+
 - `services/*/config.py`: Pydantic settings for each service
 - `services/*/models.py`: SQLAlchemy models (note pgvector `Vector()` type in vector-db)
 - `services/*/crud.py`: Database operations (create, read, update, delete)
@@ -238,17 +271,19 @@ result = await vector_client.process_document(...)
 ## Testing & Validation
 
 Run comprehensive tests before committing changes:
+
 ```bash
-# Integration test (uploads real PDF, tests search)
-./test-phase2-integration.sh
+# Integration tests (from scripts/ directory)
+./scripts/test-phase2-integration.sh  # Vector DB integration
+./scripts/test-phase4-integration.sh  # API Gateway workflows
+./scripts/test-extraction-endpoints.sh  # PDF extraction features
 
-# Individual service tests
-./test-service.sh document-processing
-./test-extraction-endpoints.sh  # Tests table/figure/reference extraction
-
-# Python unit tests
-python test_comprehensive.py  # PDFParser feature tests
-python test_vector_db.py      # Vector DB operations
+# Python unit tests (from tests/ directory)
+python tests/test_comprehensive.py  # PDFParser feature tests
+python tests/test_vector_db.py      # Vector DB operations
 ```
 
-See `EXTRACTION_TESTING_SUMMARY.md` for extraction feature validation.
+See `docs/EXTRACTION_TESTING_SUMMARY.md` for extraction feature validation.
+See `scripts/README.md` for complete script documentation.
+See `tests/README.md` for Python test documentation.
+
